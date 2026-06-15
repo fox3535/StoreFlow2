@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "shelfflow",
   "private": true,
   "scripts": {
     "build": "remix vite:build",
@@ -20,7 +20,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=20.19 <22 || >=22.12"
+    "node": ">=20.17 <22 || >=22.12"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
@@ -73,6 +73,7 @@
     "@graphql-codegen/client-preset": "4.7.0",
     "@graphql-codegen/typescript-operations": "4.5.0",
     "minimatch": "9.0.5",
-    "vite": "^6.2.2"
+    "vite": "^6.2.2",
+    "@shopify/shopify-api": "^13.0.0"
   }
 }
