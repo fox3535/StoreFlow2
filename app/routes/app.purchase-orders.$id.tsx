@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
-  Layout,
   Card,
   Text,
   BlockStack,
@@ -17,6 +16,9 @@ import {
   Box,
   InlineGrid,
   Select,
+  Popover,
+  ChoiceList,
+  Collapsible,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 
@@ -26,8 +28,8 @@ import {
   updatePurchaseOrder,
   updatePurchaseOrderStatus,
 } from "../models/purchase-order.server";
-import type { EditItem } from "../components/POSpreadsheet";
-import { POSpreadsheet } from "../components/POSpreadsheet";
+import type { EditItem, ColKey } from "../components/POSpreadsheet";
+import { ALL_COLS, DEFAULT_VISIBLE, POSpreadsheet } from "../components/POSpreadsheet";
 
 // ---------------------------------------------------------------------------
 // Status config
@@ -42,29 +44,26 @@ const STATUS_BADGE: Record<string, { tone: "info" | "warning" | "success" | "cri
   cancelled:          { tone: "critical", label: "Cancelled" },
 };
 
-const STATUS_TRANSITIONS: Record<string, { label: string; next: string; tone?: "critical" }[]> = {
-  draft:              [{ label: "Send to Supplier (Open)",  next: "open" }],
-  open:               [{ label: "Mark as In Transit",       next: "in_transit" }, { label: "Cancel PO", next: "cancelled", tone: "critical" }],
-  in_transit:         [{ label: "Mark as Received",         next: "received" }],
-  partially_received: [{ label: "Mark as Received",         next: "received" }],
+const STATUS_TRANSITIONS: Record<string, { label: string; next: string; critical?: boolean }[]> = {
+  draft:              [{ label: "Send to Supplier",  next: "open" }],
+  open:               [{ label: "Mark In Transit",   next: "in_transit" }, { label: "Cancel PO", next: "cancelled", critical: true }],
+  in_transit:         [{ label: "Mark Received",     next: "received" }],
+  partially_received: [{ label: "Mark Received",     next: "received" }],
   received:           [],
   cancelled:          [],
 };
 
-const EDITABLE_STATUSES = new Set(["draft", "open"]);
+const EDITABLE = new Set(["draft", "open"]);
 
 const CURRENCY_OPTIONS = [
-  { label: "USD", value: "USD" },
-  { label: "CAD", value: "CAD" },
-  { label: "EUR", value: "EUR" },
-  { label: "GBP", value: "GBP" },
-  { label: "AUD", value: "AUD" },
-  { label: "JPY", value: "JPY" },
+  { label: "USD", value: "USD" }, { label: "CAD", value: "CAD" },
+  { label: "EUR", value: "EUR" }, { label: "GBP", value: "GBP" },
+  { label: "AUD", value: "AUD" }, { label: "JPY", value: "JPY" },
   { label: "CNY", value: "CNY" },
 ];
 
 // ---------------------------------------------------------------------------
-// Loader
+// Loader & Action
 // ---------------------------------------------------------------------------
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -74,39 +73,28 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return json({ po });
 };
 
-// ---------------------------------------------------------------------------
-// Action
-// ---------------------------------------------------------------------------
-
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  const fd = await request.formData();
+  const intent = fd.get("intent") as string;
 
   if (intent === "save") {
-    const lineItemsJson  = formData.get("lineItemsJson")  as string;
-    const removedIdsJson = formData.get("removedIdsJson") as string;
-
-    const lineItems  = JSON.parse(lineItemsJson  || "[]");
-    const removedIds = JSON.parse(removedIdsJson || "[]");
-
     await updatePurchaseOrder(session.shop, params.id!, {
-      notes:        (formData.get("notes")        as string) || null,
-      exchangeRate: parseFloat(formData.get("exchangeRate") as string) || 1,
-      freightCost:  parseFloat(formData.get("freightCost")  as string) || 0,
-      tax:          parseFloat(formData.get("tax")          as string) || 0,
-      discounts:    parseFloat(formData.get("discounts")    as string) || 0,
-      otherCosts:   parseFloat(formData.get("otherCosts")   as string) || 0,
-      adjustment:   parseFloat(formData.get("adjustment")   as string) || 0,
-      lineItems,
-      removedIds,
+      notes:        (fd.get("notes") as string)       || null,
+      exchangeRate: parseFloat(fd.get("exchangeRate") as string) || 1,
+      freightCost:  parseFloat(fd.get("freightCost")  as string) || 0,
+      tax:          parseFloat(fd.get("tax")          as string) || 0,
+      discounts:    parseFloat(fd.get("discounts")    as string) || 0,
+      otherCosts:   parseFloat(fd.get("otherCosts")   as string) || 0,
+      adjustment:   parseFloat(fd.get("adjustment")   as string) || 0,
+      lineItems:    JSON.parse((fd.get("lineItemsJson")  as string) || "[]"),
+      removedIds:   JSON.parse((fd.get("removedIdsJson") as string) || "[]"),
     });
     return json({ saved: true });
   }
 
   if (intent === "updateStatus") {
-    const status = formData.get("status") as string;
-    await updatePurchaseOrderStatus(session.shop, params.id!, status);
+    await updatePurchaseOrderStatus(session.shop, params.id!, fd.get("status") as string);
     return json({ ok: true });
   }
 
@@ -117,72 +105,33 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function calcTotal(
-  subtotal: number,
-  freight: number,
-  tax: number,
-  discounts: number,
-  other: number,
-  rate: number,
-  adj: number,
-) {
-  return (subtotal + freight + tax + other - discounts) * rate + adj;
-}
+const toNum = (s: string) => { const n = parseFloat(s); return isNaN(n) ? 0 : n; };
 
-function toNum(s: string) {
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+function calcLanded(sub: number, freight: number, tax: number, disc: number, other: number, rate: number, adj: number) {
+  return (sub + freight + tax + other - disc) * (rate || 1) + adj;
 }
 
 // ---------------------------------------------------------------------------
-// Editable cost field
-// ---------------------------------------------------------------------------
-
-function CostField({
-  label,
-  value,
-  onChange,
-  prefix = "$",
-  helpText,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  prefix?: string;
-  helpText?: string;
-}) {
-  return (
-    <TextField
-      label={label}
-      value={value}
-      onChange={onChange}
-      type="number"
-      prefix={prefix}
-      helpText={helpText}
-      autoComplete="off"
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
+// Component
 // ---------------------------------------------------------------------------
 
 export default function PurchaseOrderDetail() {
-  const { po } = useLoaderData<typeof loader>();
+  const { po }   = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const fetcher = useFetcher<{ saved?: boolean; ok?: boolean }>();
+  const fetcher  = useFetcher<{ saved?: boolean; ok?: boolean }>();
 
-  const canEdit = EDITABLE_STATUSES.has(po.status);
-  const badge   = STATUS_BADGE[po.status] ?? { tone: undefined, label: po.status };
-  const transitions = STATUS_TRANSITIONS[po.status] ?? [];
+  const canEdit      = EDITABLE.has(po.status);
+  const badge        = STATUS_BADGE[po.status] ?? { tone: undefined, label: po.status };
+  const transitions  = STATUS_TRANSITIONS[po.status] ?? [];
+  const saving       = fetcher.state !== "idle";
+  const justSaved    = fetcher.state === "idle" && (fetcher.data as any)?.saved;
 
-  // ── Line item state ──────────────────────────────────────────────────────
+  // ── Line items ────────────────────────────────────────────────────────────
   const [items, setItems] = useState<EditItem[]>(() =>
     po.lineItems.map((li) => ({
       id:          li.id,
-      description: li.description ?? "",
-      supplierSku: li.supplierSku ?? "",
+      description: li.description  ?? "",
+      supplierSku: li.supplierSku  ?? "",
       qtyOrdered:  String(li.qtyOrdered),
       unitCost:    String(li.unitCost),
       qtyReceived: li.qtyReceived,
@@ -192,7 +141,7 @@ export default function PurchaseOrderDetail() {
   );
   const [removedIds, setRemovedIds] = useState<string[]>([]);
 
-  // ── Cost summary state ───────────────────────────────────────────────────
+  // ── Cost fields ───────────────────────────────────────────────────────────
   const [freight,      setFreight]      = useState(String(po.freightCost));
   const [tax,          setTax]          = useState(String(po.tax));
   const [discounts,    setDiscounts]    = useState(String(po.discounts));
@@ -202,41 +151,38 @@ export default function PurchaseOrderDetail() {
   const [currency,     setCurrency]     = useState(po.currency);
   const [notes,        setNotes]        = useState(po.notes ?? "");
 
-  // ── Dirty tracking ───────────────────────────────────────────────────────
-  const [dirty, setDirty] = useState(false);
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [dirty,           setDirty]           = useState(false);
+  const [costOpen,        setCostOpen]        = useState(true);
+  const [colPopoverOpen,  setColPopoverOpen]  = useState(false);
+  const [visibleColKeys,  setVisibleColKeys]  = useState<ColKey[]>(
+    () => Array.from(DEFAULT_VISIBLE) as ColKey[],
+  );
 
-  // Reset dirty flag after successful save (fetcher revalidates loader)
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.saved) {
+    if (fetcher.state === "idle" && (fetcher.data as any)?.saved) {
       setDirty(false);
       setRemovedIds([]);
     }
   }, [fetcher.state, fetcher.data]);
 
-  // ── Derived totals (live, client-side) ───────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
   const subtotal = items.reduce((s, i) => s + toNum(i.qtyOrdered) * toNum(i.unitCost), 0);
   const totalQty = items.reduce((s, i) => s + toNum(i.qtyOrdered), 0);
-  const totalLandedCost = calcTotal(
-    subtotal,
-    toNum(freight),
-    toNum(tax),
-    toNum(discounts),
-    toNum(otherCosts),
-    toNum(exchangeRate) || 1,
-    toNum(adjustment),
-  );
+  const totalLandedCost = calcLanded(subtotal, toNum(freight), toNum(tax), toNum(discounts), toNum(otherCosts), toNum(exchangeRate), toNum(adjustment));
+  const visibleCols = new Set(visibleColKeys);
 
-  // ── Item handlers ─────────────────────────────────────────────────────────
-  function handleChange(id: string, field: keyof Pick<EditItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) {
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleChange = useCallback((id: string, field: keyof Pick<EditItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
     setDirty(true);
-  }
+  }, []);
 
-  function handleRemove(id: string) {
+  const handleRemove = useCallback((id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
     if (!id.startsWith("new-")) setRemovedIds((prev) => [...prev, id]);
     setDirty(true);
-  }
+  }, []);
 
   function handleAddRow() {
     setItems((prev) => [
@@ -246,26 +192,23 @@ export default function PurchaseOrderDetail() {
     setDirty(true);
   }
 
-  // ── Save handler ─────────────────────────────────────────────────────────
   function handleSave() {
     const fd = new FormData();
     fd.append("intent", "save");
-    fd.append("notes",        notes);
-    fd.append("exchangeRate", exchangeRate);
-    fd.append("freightCost",  freight);
-    fd.append("tax",          tax);
-    fd.append("discounts",    discounts);
-    fd.append("otherCosts",   otherCosts);
-    fd.append("adjustment",   adjustment);
-    fd.append("lineItemsJson", JSON.stringify(
-      items.map((i) => ({
-        id:          i.id,
-        description: i.description,
-        supplierSku: i.supplierSku || null,
-        qtyOrdered:  toNum(i.qtyOrdered),
-        unitCost:    toNum(i.unitCost),
-      })),
-    ));
+    fd.append("notes",         notes);
+    fd.append("exchangeRate",  exchangeRate);
+    fd.append("freightCost",   freight);
+    fd.append("tax",           tax);
+    fd.append("discounts",     discounts);
+    fd.append("otherCosts",    otherCosts);
+    fd.append("adjustment",    adjustment);
+    fd.append("lineItemsJson",  JSON.stringify(items.map((i) => ({
+      id:          i.id,
+      description: i.description,
+      supplierSku: i.supplierSku || null,
+      qtyOrdered:  toNum(i.qtyOrdered),
+      unitCost:    toNum(i.unitCost),
+    }))));
     fd.append("removedIdsJson", JSON.stringify(removedIds));
     fetcher.submit(fd, { method: "post" });
   }
@@ -277,27 +220,55 @@ export default function PurchaseOrderDetail() {
     fetcher.submit(fd, { method: "post" });
   }
 
-  const saving = fetcher.state !== "idle";
-  const justSaved = fetcher.state === "idle" && fetcher.data?.saved;
+  // ── Column toggle ─────────────────────────────────────────────────────────
+  const toggleChoices = ALL_COLS
+    .filter((c) => !c.alwaysVisible)
+    .map((c) => ({ label: c.label || c.key, value: c.key }));
+
+  function handleColChange(selected: string[]) {
+    const always = ALL_COLS.filter((c) => c.alwaysVisible).map((c) => c.key) as ColKey[];
+    setVisibleColKeys([...always, ...(selected as ColKey[])]);
+  }
+
+  const toggleableSelected = visibleColKeys.filter((k) => {
+    const col = ALL_COLS.find((c) => c.key === k);
+    return col && !col.alwaysVisible;
+  });
+
+  // ── Cost field component ──────────────────────────────────────────────────
+  function CF({ label, value, onChange, helpText, prefix = "$" }: {
+    label: string; value: string; onChange: (v: string) => void;
+    helpText?: string; prefix?: string;
+  }) {
+    return (
+      <TextField
+        label={label}
+        value={value}
+        onChange={(v) => { onChange(v); setDirty(true); }}
+        type="number"
+        prefix={prefix}
+        helpText={helpText}
+        autoComplete="off"
+        disabled={!canEdit}
+      />
+    );
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title={po.poNumber}>
-        <button onClick={() => navigate("/app/purchase-orders")}>Back</button>
+        <button onClick={() => navigate("/app/purchase-orders")}>Back to POs</button>
         {canEdit && (
-          <button
-            variant="primary"
-            onClick={handleSave}
-            disabled={saving || !dirty}
-          >
+          <button variant="primary" onClick={handleSave} disabled={saving || !dirty}>
             {saving ? "Saving…" : dirty ? "Save Changes" : "Saved"}
           </button>
         )}
       </TitleBar>
 
-      <BlockStack gap="400">
-        {/* Unsaved changes warning */}
+      <BlockStack gap="300">
+
+        {/* ── Banners ─────────────────────────────────────────────────────── */}
         {dirty && (
           <Banner tone="warning">
             <InlineStack align="space-between" blockAlign="center">
@@ -307,108 +278,169 @@ export default function PurchaseOrderDetail() {
           </Banner>
         )}
         {justSaved && (
-          <Banner tone="success">
-            <Text as="p" variant="bodyMd">Changes saved successfully.</Text>
+          <Banner tone="success" onDismiss={() => {}}>
+            <Text as="p" variant="bodyMd">Saved successfully.</Text>
           </Banner>
         )}
 
-        {/* PO Header */}
+        {/* ── Header bar ──────────────────────────────────────────────────── */}
         <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="050">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h1" variant="headingLg">{po.poNumber}</Text>
-                  <Badge tone={badge.tone}>{badge.label}</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  {po.supplier.name} · Created {new Date(po.createdAt).toLocaleDateString()}
-                </Text>
-              </BlockStack>
-              <InlineStack gap="200">
-                {transitions.map((t) => (
-                  <Button
-                    key={t.next}
-                    tone={t.tone ?? undefined}
-                    size="slim"
-                    onClick={() => changeStatus(t.next)}
-                    loading={saving}
-                  >
-                    {t.label}
-                  </Button>
-                ))}
+          <InlineStack align="space-between" blockAlign="center" wrap={false}>
+            <BlockStack gap="050">
+              <InlineStack gap="300" blockAlign="center">
+                <Text as="h1" variant="headingLg" fontWeight="bold">{po.poNumber}</Text>
+                <Badge tone={badge.tone}>{badge.label}</Badge>
               </InlineStack>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                {po.supplier.name} · {items.length} item{items.length !== 1 ? "s" : ""} · {totalQty} units · Created {new Date(po.createdAt).toLocaleDateString()}
+              </Text>
+            </BlockStack>
+
+            <InlineStack gap="200" blockAlign="center">
+              {transitions.map((t) => (
+                <Button
+                  key={t.next}
+                  tone={t.critical ? "critical" : undefined}
+                  variant={t.critical ? undefined : "primary"}
+                  size="slim"
+                  onClick={() => changeStatus(t.next)}
+                  loading={saving}
+                >
+                  {t.label}
+                </Button>
+              ))}
+              {po.status === "received" && (
+                <Badge tone="success">Fully Received</Badge>
+              )}
+              {po.status === "cancelled" && (
+                <Badge tone="critical">Cancelled</Badge>
+              )}
             </InlineStack>
-          </BlockStack>
+          </InlineStack>
         </Card>
 
-        <Layout>
-          {/* ── Main: Spreadsheet ─────────────────────────────────────── */}
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">Line Items</Text>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    {items.length} item{items.length !== 1 ? "s" : ""} · {totalQty} units
-                  </Text>
-                </InlineStack>
-                <Divider />
-                <POSpreadsheet
-                  items={items}
-                  totalLandedCost={totalLandedCost}
-                  totalQtyOrdered={totalQty}
-                  onChange={handleChange}
-                  onRemove={handleRemove}
-                  onAddRow={handleAddRow}
-                  disabled={!canEdit}
-                />
-              </BlockStack>
-            </Card>
+        {/* ── Spreadsheet ─────────────────────────────────────────────────── */}
+        <Card padding="0">
+          {/* Table toolbar */}
+          <Box paddingBlock="300" paddingInline="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h2" variant="headingMd">Line Items</Text>
+              <InlineStack gap="200">
+                {/* Column visibility toggle */}
+                <Popover
+                  active={colPopoverOpen}
+                  activator={
+                    <Button
+                      size="slim"
+                      onClick={() => setColPopoverOpen((v) => !v)}
+                    >
+                      {`Columns (${visibleColKeys.length})`}
+                    </Button>
+                  }
+                  onClose={() => setColPopoverOpen(false)}
+                  preferredAlignment="right"
+                >
+                  <Box padding="400" minWidth="200px">
+                    <BlockStack gap="300">
+                      <Text as="p" variant="headingSm">Show / Hide Columns</Text>
+                      <ChoiceList
+                        title=""
+                        titleHidden
+                        allowMultiple
+                        choices={toggleChoices}
+                        selected={toggleableSelected}
+                        onChange={handleColChange}
+                      />
+                    </BlockStack>
+                  </Box>
+                </Popover>
 
-            {/* Notes */}
-            {canEdit && (
-              <Box paddingBlockStart="400">
-                <Card>
-                  <BlockStack gap="300">
-                    <Text as="h2" variant="headingMd">Notes</Text>
-                    <Divider />
-                    <TextField
-                      label=""
-                      labelHidden
-                      multiline={3}
-                      value={notes}
-                      onChange={(v) => { setNotes(v); setDirty(true); }}
-                      placeholder="Internal notes about this PO…"
-                      autoComplete="off"
-                    />
+                {canEdit && (
+                  <Button size="slim" onClick={handleAddRow}>
+                    Add Row
+                  </Button>
+                )}
+              </InlineStack>
+            </InlineStack>
+          </Box>
+
+          <Divider />
+
+          <POSpreadsheet
+            items={items}
+            visibleCols={visibleCols}
+            totalLandedCost={totalLandedCost}
+            totalQtyOrdered={totalQty}
+            onChange={handleChange}
+            onRemove={handleRemove}
+            disabled={!canEdit}
+          />
+        </Card>
+
+        {/* ── Cost Summary (collapsible) ────────────────────────────────── */}
+        <Card>
+          {/* Always-visible summary strip */}
+          <InlineStack align="space-between" blockAlign="center">
+            <InlineStack gap="500" blockAlign="center">
+              <Text as="h2" variant="headingMd">Cost Summary</Text>
+              <InlineStack gap="400">
+                <BlockStack gap="0">
+                  <Text as="span" variant="bodySm" tone="subdued">Subtotal</Text>
+                  <Text as="span" variant="bodyMd" fontWeight="semibold">${subtotal.toFixed(2)}</Text>
+                </BlockStack>
+                {toNum(freight) > 0 && (
+                  <BlockStack gap="0">
+                    <Text as="span" variant="bodySm" tone="subdued">Freight</Text>
+                    <Text as="span" variant="bodyMd">+${toNum(freight).toFixed(2)}</Text>
                   </BlockStack>
-                </Card>
-              </Box>
-            )}
-            {!canEdit && po.notes && (
-              <Box paddingBlockStart="400">
-                <Card>
-                  <BlockStack gap="200">
-                    <Text as="h2" variant="headingMd">Notes</Text>
-                    <Text as="p" variant="bodyMd">{po.notes}</Text>
+                )}
+                {toNum(tax) > 0 && (
+                  <BlockStack gap="0">
+                    <Text as="span" variant="bodySm" tone="subdued">Tax</Text>
+                    <Text as="span" variant="bodyMd">+${toNum(tax).toFixed(2)}</Text>
                   </BlockStack>
-                </Card>
-              </Box>
-            )}
-          </Layout.Section>
+                )}
+                {toNum(discounts) > 0 && (
+                  <BlockStack gap="0">
+                    <Text as="span" variant="bodySm" tone="subdued">Discount</Text>
+                    <Text as="span" variant="bodyMd" tone="success">−${toNum(discounts).toFixed(2)}</Text>
+                  </BlockStack>
+                )}
+                <BlockStack gap="0">
+                  <Text as="span" variant="bodySm" tone="subdued">Total Landed</Text>
+                  <Text as="span" variant="headingMd" fontWeight="bold">${totalLandedCost.toFixed(2)}</Text>
+                </BlockStack>
+                {totalQty > 0 && (
+                  <BlockStack gap="0">
+                    <Text as="span" variant="bodySm" tone="subdued">Per Unit</Text>
+                    <Text as="span" variant="bodyMd">${(totalLandedCost / totalQty).toFixed(3)}</Text>
+                  </BlockStack>
+                )}
+              </InlineStack>
+            </InlineStack>
 
-          {/* ── Sidebar: Cost summary ─────────────────────────────────── */}
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="400">
+            <InlineStack gap="200">
+              {canEdit && dirty && (
+                <Button variant="primary" size="slim" onClick={handleSave} loading={saving}>
+                  Save Changes
+                </Button>
+              )}
+              <Button
+                size="slim"
+                onClick={() => setCostOpen((v) => !v)}
+              >
+                {costOpen ? "Hide Cost Fields ▲" : "Edit Costs ▼"}
+              </Button>
+            </InlineStack>
+          </InlineStack>
 
-              {/* Editable cost fields */}
-              <Card>
+          {/* Expandable cost fields */}
+          <Collapsible open={costOpen} id="cost-summary-fields">
+            <Box paddingBlockStart="400">
+              <Divider />
+              <Box paddingBlockStart="400">
                 <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Cost Summary</Text>
-                  <Divider />
-
-                  <InlineGrid columns={2} gap="300">
+                  <InlineGrid columns={{ xs: 2, sm: 3, md: 4, lg: 7 }} gap="300">
                     <Select
                       label="Currency"
                       options={CURRENCY_OPTIONS}
@@ -416,137 +448,29 @@ export default function PurchaseOrderDetail() {
                       onChange={(v) => { setCurrency(v); setDirty(true); }}
                       disabled={!canEdit}
                     />
-                    <CostField
-                      label="Exchange Rate"
-                      value={exchangeRate}
-                      onChange={(v) => { setExchangeRate(v); setDirty(true); }}
-                      prefix="×"
-                    />
+                    <CF label="Exchange Rate" value={exchangeRate} onChange={setExchangeRate} prefix="×" helpText="Multiplied" />
+                    <CF label="Freight" value={freight}    onChange={setFreight}    />
+                    <CF label="Tax"     value={tax}        onChange={setTax}        />
+                    <CF label="Duties / Other" value={otherCosts} onChange={setOtherCosts} />
+                    <CF label="Discounts" value={discounts} onChange={setDiscounts} helpText="Subtracted" />
+                    <CF label="Adjustment" value={adjustment} onChange={setAdjustment} helpText="Fixed adj." />
                   </InlineGrid>
 
-                  <CostField label="Freight / Shipping" value={freight}    onChange={(v) => { setFreight(v);    setDirty(true); }} />
-                  <CostField label="Tax"                value={tax}        onChange={(v) => { setTax(v);        setDirty(true); }} />
-                  <CostField label="Duties / Other"     value={otherCosts} onChange={(v) => { setOtherCosts(v); setDirty(true); }} />
-                  <CostField
-                    label="Discounts"
-                    value={discounts}
-                    onChange={(v) => { setDiscounts(v); setDirty(true); }}
-                    helpText="Subtracted from cost"
+                  <TextField
+                    label="Notes"
+                    value={notes}
+                    onChange={(v) => { setNotes(v); setDirty(true); }}
+                    multiline={2}
+                    placeholder="Internal notes about this PO…"
+                    autoComplete="off"
+                    disabled={!canEdit}
                   />
-                  <CostField
-                    label="Adjustment"
-                    value={adjustment}
-                    onChange={(v) => { setAdjustment(v); setDirty(true); }}
-                    helpText="Fixed add/subtract after rate"
-                  />
-
-                  <Divider />
-
-                  {/* Breakdown */}
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd" tone="subdued">Subtotal</Text>
-                      <Text as="span" variant="bodyMd">${subtotal.toFixed(2)}</Text>
-                    </InlineStack>
-                    {toNum(freight) > 0 && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Freight</Text>
-                        <Text as="span" variant="bodyMd">+${toNum(freight).toFixed(2)}</Text>
-                      </InlineStack>
-                    )}
-                    {toNum(tax) > 0 && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Tax</Text>
-                        <Text as="span" variant="bodyMd">+${toNum(tax).toFixed(2)}</Text>
-                      </InlineStack>
-                    )}
-                    {toNum(otherCosts) > 0 && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Duties / Other</Text>
-                        <Text as="span" variant="bodyMd">+${toNum(otherCosts).toFixed(2)}</Text>
-                      </InlineStack>
-                    )}
-                    {toNum(discounts) > 0 && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Discounts</Text>
-                        <Text as="span" variant="bodyMd" tone="success">−${toNum(discounts).toFixed(2)}</Text>
-                      </InlineStack>
-                    )}
-                    {(toNum(exchangeRate) !== 1) && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Rate</Text>
-                        <Text as="span" variant="bodyMd">×{toNum(exchangeRate).toFixed(4)}</Text>
-                      </InlineStack>
-                    )}
-                    {toNum(adjustment) !== 0 && (
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd" tone="subdued">Adjustment</Text>
-                        <Text as="span" variant="bodyMd">${toNum(adjustment).toFixed(2)}</Text>
-                      </InlineStack>
-                    )}
-                  </BlockStack>
-
-                  <Divider />
-
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">Total Landed Cost</Text>
-                    <Text as="span" variant="headingLg" fontWeight="bold">
-                      ${totalLandedCost.toFixed(2)}
-                    </Text>
-                  </InlineStack>
-
-                  {totalQty > 0 && (
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodySm" tone="subdued">Landed Cost / Unit</Text>
-                      <Text as="span" variant="bodySm">
-                        ${(totalLandedCost / totalQty).toFixed(4)}
-                      </Text>
-                    </InlineStack>
-                  )}
-
-                  {canEdit && (
-                    <Box paddingBlockStart="200">
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        onClick={handleSave}
-                        loading={saving}
-                        disabled={!dirty}
-                      >
-                        {dirty ? "Save Changes" : "Saved"}
-                      </Button>
-                    </Box>
-                  )}
                 </BlockStack>
-              </Card>
+              </Box>
+            </Box>
+          </Collapsible>
+        </Card>
 
-              {/* PO metadata */}
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">Details</Text>
-                  <Divider />
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd" tone="subdued">Supplier</Text>
-                    <Text as="span" variant="bodyMd">{po.supplier.name}</Text>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd" tone="subdued">Currency</Text>
-                    <Text as="span" variant="bodyMd">{po.currency}</Text>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd" tone="subdued">Created</Text>
-                    <Text as="span" variant="bodyMd">{new Date(po.createdAt).toLocaleDateString()}</Text>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd" tone="subdued">Updated</Text>
-                    <Text as="span" variant="bodyMd">{new Date(po.updatedAt).toLocaleDateString()}</Text>
-                  </InlineStack>
-                </BlockStack>
-              </Card>
-
-            </BlockStack>
-          </Layout.Section>
-        </Layout>
       </BlockStack>
     </Page>
   );

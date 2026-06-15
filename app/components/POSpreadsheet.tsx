@@ -1,5 +1,46 @@
 import React from "react";
-import { Text } from "@shopify/polaris";
+
+// ---------------------------------------------------------------------------
+// Column definitions
+// ---------------------------------------------------------------------------
+
+export type ColKey =
+  | "image" | "description" | "supplierSku" | "sku" | "barcode"
+  | "retail" | "cost" | "landed" | "markup" | "margin"
+  | "available" | "onOrder" | "qty"
+  | "qtyReceived" | "qtyRejected" | "lineTotal";
+
+export type ColDef = {
+  key: ColKey;
+  label: string;
+  width: number;
+  align: "left" | "right" | "center";
+  defaultVisible: boolean;
+  alwaysVisible: boolean;
+};
+
+export const ALL_COLS: ColDef[] = [
+  { key: "image",       label: "",                   width: 44,  align: "center", defaultVisible: true,  alwaysVisible: true  },
+  { key: "description", label: "Product",             width: 200, align: "left",   defaultVisible: true,  alwaysVisible: true  },
+  { key: "supplierSku", label: "Supplier Code / SKU", width: 130, align: "left",   defaultVisible: true,  alwaysVisible: false },
+  { key: "sku",         label: "SKU",                 width: 100, align: "left",   defaultVisible: true,  alwaysVisible: false },
+  { key: "barcode",     label: "Barcode",             width: 115, align: "left",   defaultVisible: false, alwaysVisible: false },
+  { key: "retail",      label: "Retail",              width: 82,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "cost",        label: "Cost",                width: 90,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
+  { key: "landed",      label: "Landed",              width: 90,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "markup",      label: "Markup",              width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "margin",      label: "Margin",              width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "available",   label: "Available",           width: 75,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "onOrder",     label: "On Order",            width: 72,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "qty",         label: "Qty",                 width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
+  { key: "qtyReceived", label: "Recv",                width: 60,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "qtyRejected", label: "Rej",                 width: 55,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "lineTotal",   label: "Total",               width: 90,  align: "right",  defaultVisible: false, alwaysVisible: false },
+];
+
+export const DEFAULT_VISIBLE = new Set<ColKey>(
+  ALL_COLS.filter((c) => c.defaultVisible).map((c) => c.key),
+);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -12,16 +53,14 @@ export type POLineItemProduct = {
   currentPrice: number;
   currentQuantity: number;
   avgCost: number;
-  avgLandedCost: number;
 };
 
 export type EditItem = {
-  id: string; // "new-xxx" = unsaved new row
+  id: string;
   description: string;
   supplierSku: string;
   qtyOrdered: string;
   unitCost: string;
-  // read-only from DB
   qtyReceived: number;
   qtyRejected: number;
   product: POLineItemProduct | null;
@@ -29,16 +68,16 @@ export type EditItem = {
 
 export type POSpreadsheetProps = {
   items: EditItem[];
+  visibleCols: Set<ColKey>;
   totalLandedCost: number;
   totalQtyOrdered: number;
   onChange: (id: string, field: keyof Pick<EditItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) => void;
   onRemove: (id: string) => void;
-  onAddRow: () => void;
   disabled?: boolean;
 };
 
 // ---------------------------------------------------------------------------
-// Compact native input — avoids Polaris remount / focus-loss issues
+// Compact native input — stable, no Polaris remount issues
 // ---------------------------------------------------------------------------
 
 function TI({
@@ -47,15 +86,13 @@ function TI({
   type = "text",
   placeholder = "",
   align = "left",
-  width,
   disabled = false,
 }: {
   value: string;
   onChange: (v: string) => void;
-  type?: string;
+  type?: "text" | "number";
   placeholder?: string;
   align?: "left" | "right";
-  width?: number;
   disabled?: boolean;
 }) {
   const [focused, setFocused] = React.useState(false);
@@ -69,9 +106,9 @@ function TI({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        width: width ? `${width}px` : "100%",
-        height: "28px",
-        padding: "0 6px",
+        width: "100%",
+        height: "30px",
+        padding: "0 7px",
         border: `1.5px solid ${focused ? "#005bd3" : "#c9cccf"}`,
         borderRadius: "4px",
         fontSize: "13px",
@@ -80,64 +117,58 @@ function TI({
         boxSizing: "border-box",
         outline: "none",
         boxShadow: focused ? "0 0 0 2px #c4d3f4" : "none",
-        transition: "border-color 0.1s",
+        color: "#202223",
       }}
     />
   );
 }
 
 // ---------------------------------------------------------------------------
-// Read-only cell helper
+// Read-only cell
 // ---------------------------------------------------------------------------
 
 function RO({
   value,
   align = "left",
   tone,
+  bold,
 }: {
   value: string;
   align?: "left" | "right";
-  tone?: "subdued" | "success" | "critical";
+  tone?: "subdued" | "success" | "critical" | "warning";
+  bold?: boolean;
 }) {
-  const color = tone === "subdued" ? "#6d7175" : tone === "success" ? "#1a7a4a" : tone === "critical" ? "#d72c0d" : "#202223";
+  const colors: Record<string, string> = {
+    subdued: "#6d7175",
+    success: "#1a7a4a",
+    critical: "#d72c0d",
+    warning: "#b98900",
+  };
   return (
-    <span style={{ fontSize: "13px", color, display: "block", textAlign: align, whiteSpace: "nowrap" }}>
+    <span
+      style={{
+        fontSize: "13px",
+        color: tone ? colors[tone] : "#202223",
+        fontWeight: bold ? 600 : 400,
+        display: "block",
+        textAlign: align,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
       {value}
     </span>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Column header definitions
-// ---------------------------------------------------------------------------
-
-const COLS = [
-  { label: "",               width: 40,  align: "center" as const },  // image
-  { label: "Description",   width: 190, align: "left"   as const },  // editable
-  { label: "Supplier SKU",  width: 105, align: "left"   as const },  // editable
-  { label: "SKU",           width: 90,  align: "left"   as const },  // r/o
-  { label: "Barcode",       width: 100, align: "left"   as const },  // r/o
-  { label: "Qty Ordered",   width: 72,  align: "right"  as const },  // editable
-  { label: "Qty Recv",      width: 65,  align: "right"  as const },  // r/o
-  { label: "Qty Rej",       width: 60,  align: "right"  as const },  // r/o
-  { label: "On Order",      width: 65,  align: "right"  as const },  // r/o
-  { label: "Unit Cost",     width: 88,  align: "right"  as const },  // editable
-  { label: "Line Total",    width: 88,  align: "right"  as const },  // r/o
-  { label: "Landed/Unit",   width: 88,  align: "right"  as const },  // r/o
-  { label: "Avg Cost",      width: 80,  align: "right"  as const },  // r/o
-  { label: "Markup %",      width: 72,  align: "right"  as const },  // r/o
-  { label: "Margin %",      width: 72,  align: "right"  as const },  // r/o
-  { label: "Sugg. Price",   width: 88,  align: "right"  as const },  // r/o
-  { label: "Curr. Stock",   width: 75,  align: "right"  as const },  // r/o
-  { label: "",               width: 48,  align: "center" as const },  // remove
-];
-
-// ---------------------------------------------------------------------------
-// Row — defined at MODULE LEVEL so React never remounts on parent re-render
+// Row — defined at MODULE LEVEL for stable React identity
 // ---------------------------------------------------------------------------
 
 function POLineItemRow({
   item,
+  visibleCols,
   landedPerUnit,
   onChange,
   onRemove,
@@ -145,190 +176,169 @@ function POLineItemRow({
   disabled,
 }: {
   item: EditItem;
+  visibleCols: Set<ColKey>;
   landedPerUnit: number;
   onChange: POSpreadsheetProps["onChange"];
   onRemove: POSpreadsheetProps["onRemove"];
   isOnly: boolean;
   disabled: boolean;
 }) {
-  const p = item.product;
-  const qty     = parseFloat(item.qtyOrdered) || 0;
-  const cost    = parseFloat(item.unitCost)   || 0;
-  const lineTotal = qty * cost;
+  const p    = item.product;
+  const qty  = parseFloat(item.qtyOrdered) || 0;
+  const cost = parseFloat(item.unitCost)   || 0;
 
-  const lpu = landedPerUnit;
-  const avgCost      = p?.avgCost      ?? 0;
-  const currentPrice = p?.currentPrice ?? 0;
-  const currentQty   = p?.currentQuantity ?? 0;
+  const lineTotal    = qty * cost;
+  const retail       = p?.currentPrice    ?? 0;
+  const available    = p?.currentQuantity ?? 0;
   const onOrder      = Math.max(0, qty - item.qtyReceived);
+  const lpu          = landedPerUnit;
 
-  const markup = lpu > 0 && currentPrice > 0
-    ? ((currentPrice - lpu) / lpu) * 100
+  const markup = retail > 0 && lpu > 0
+    ? ((retail - lpu) / lpu)   * 100
     : null;
-  const margin = currentPrice > 0
-    ? ((currentPrice - lpu) / currentPrice) * 100
+  const margin = retail > 0
+    ? ((retail - lpu) / retail) * 100
     : null;
-  // Suggested price = landed × 1.4 (40% markup target) when not mapped to product
-  const suggestedPrice = lpu > 0 ? lpu * 1.4 : null;
 
   const td: React.CSSProperties = {
-    padding: "4px 6px",
+    padding: "3px 6px",
     borderBottom: "1px solid #e1e3e5",
     verticalAlign: "middle",
-    whiteSpace: "nowrap",
   };
+
+  function cell(key: ColKey, content: React.ReactNode, extraStyle?: React.CSSProperties) {
+    if (!visibleCols.has(key)) return null;
+    const col = ALL_COLS.find((c) => c.key === key)!;
+    return (
+      <td key={key} style={{ ...td, width: col.width, maxWidth: col.width, textAlign: col.align, ...extraStyle }}>
+        {content}
+      </td>
+    );
+  }
 
   return (
     <tr style={{ background: "white" }}>
       {/* Image */}
-      <td style={{ ...td, width: 40, textAlign: "center" }}>
-        {p ? (
-          <div style={{ width: 32, height: 32, background: "#f6f6f7", borderRadius: 4, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 10, color: "#6d7175" }}>IMG</span>
-          </div>
-        ) : (
-          <div style={{ width: 32, height: 32, background: "#f6f6f7", borderRadius: 4, border: "1px dashed #c9cccf", margin: "0 auto" }} />
-        )}
-      </td>
+      {cell("image",
+        <div style={{ width: 34, height: 34, background: "#f6f6f7", borderRadius: 4, border: p ? "none" : "1px dashed #d1d5db", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+          {p
+            ? <span style={{ fontSize: 9, color: "#6d7175", textAlign: "center", padding: 2 }}>IMG</span>
+            : null}
+        </div>
+      )}
 
-      {/* Description — editable */}
-      <td style={{ ...td, width: 190 }}>
-        <TI
-          value={item.description}
-          onChange={(v) => onChange(item.id, "description", v)}
-          placeholder={p?.title ?? "Description / SKU"}
-          disabled={disabled}
-        />
-        {p && (
-          <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
-            {p.title}
-          </div>
-        )}
-      </td>
+      {/* Product name / description */}
+      {cell("description",
+        <div>
+          <TI
+            value={item.description}
+            onChange={(v) => onChange(item.id, "description", v)}
+            placeholder={p?.title ?? "Product name / SKU…"}
+            disabled={disabled}
+          />
+          {p?.title && (
+            <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 195 }}>
+              {p.title}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Supplier SKU — editable */}
-      <td style={{ ...td, width: 105 }}>
+      {/* Supplier Code / SKU */}
+      {cell("supplierSku",
         <TI
           value={item.supplierSku}
           onChange={(v) => onChange(item.id, "supplierSku", v)}
-          placeholder="SUP-SKU"
+          placeholder="SUP-001"
           disabled={disabled}
         />
-      </td>
+      )}
 
-      {/* SKU r/o */}
-      <td style={{ ...td, width: 90 }}>
-        <RO value={p?.sku ?? "—"} tone="subdued" />
-      </td>
+      {/* SKU */}
+      {cell("sku", <RO value={p?.sku ?? "—"} tone={p?.sku ? undefined : "subdued"} />)}
 
-      {/* Barcode r/o */}
-      <td style={{ ...td, width: 100 }}>
-        <RO value={p?.barcode ?? "—"} tone="subdued" />
-      </td>
+      {/* Barcode */}
+      {cell("barcode", <RO value={p?.barcode ?? "—"} tone={p?.barcode ? undefined : "subdued"} />)}
 
-      {/* Qty Ordered — editable */}
-      <td style={{ ...td, width: 72 }}>
-        <TI
-          value={item.qtyOrdered}
-          onChange={(v) => onChange(item.id, "qtyOrdered", v)}
-          type="number"
-          align="right"
-          disabled={disabled}
-        />
-      </td>
+      {/* Retail */}
+      {cell("retail",
+        <RO value={retail > 0 ? `$${retail.toFixed(2)}` : "—"} align="right" tone={retail > 0 ? undefined : "subdued"} />
+      )}
 
-      {/* Qty Received r/o */}
-      <td style={{ ...td, width: 65 }}>
-        <RO value={String(item.qtyReceived)} align="right" />
-      </td>
+      {/* Cost (editable) */}
+      {cell("cost",
+        <TI value={item.unitCost} onChange={(v) => onChange(item.id, "unitCost", v)} type="number" align="right" disabled={disabled} />
+      )}
 
-      {/* Qty Rejected r/o */}
-      <td style={{ ...td, width: 60 }}>
-        <RO value={String(item.qtyRejected)} align="right" tone={item.qtyRejected > 0 ? "critical" : undefined} />
-      </td>
+      {/* Landed cost/unit */}
+      {cell("landed",
+        <RO value={lpu > 0 ? `$${lpu.toFixed(2)}` : "—"} align="right" tone={lpu > 0 ? undefined : "subdued"} />
+      )}
 
-      {/* On Order r/o */}
-      <td style={{ ...td, width: 65 }}>
-        <RO value={String(onOrder)} align="right" />
-      </td>
-
-      {/* Unit Cost — editable */}
-      <td style={{ ...td, width: 88 }}>
-        <TI
-          value={item.unitCost}
-          onChange={(v) => onChange(item.id, "unitCost", v)}
-          type="number"
-          align="right"
-          disabled={disabled}
-        />
-      </td>
-
-      {/* Line Total r/o */}
-      <td style={{ ...td, width: 88 }}>
-        <RO value={`$${lineTotal.toFixed(2)}`} align="right" />
-      </td>
-
-      {/* Landed/Unit r/o */}
-      <td style={{ ...td, width: 88 }}>
-        <RO value={lpu > 0 ? `$${lpu.toFixed(2)}` : "—"} align="right" />
-      </td>
-
-      {/* Avg Cost r/o */}
-      <td style={{ ...td, width: 80 }}>
-        <RO value={avgCost > 0 ? `$${avgCost.toFixed(2)}` : "—"} align="right" tone="subdued" />
-      </td>
-
-      {/* Markup % r/o */}
-      <td style={{ ...td, width: 72 }}>
+      {/* Markup % */}
+      {cell("markup",
         <RO
           value={markup !== null ? `${markup.toFixed(1)}%` : "—"}
           align="right"
-          tone={markup !== null ? (markup >= 0 ? "success" : "critical") : undefined}
+          tone={markup === null ? "subdued" : markup >= 0 ? "success" : "critical"}
         />
-      </td>
+      )}
 
-      {/* Margin % r/o */}
-      <td style={{ ...td, width: 72 }}>
+      {/* Margin % */}
+      {cell("margin",
         <RO
           value={margin !== null ? `${margin.toFixed(1)}%` : "—"}
           align="right"
-          tone={margin !== null ? (margin >= 0 ? "success" : "critical") : undefined}
+          tone={margin === null ? "subdued" : margin >= 20 ? "success" : margin >= 0 ? "warning" : "critical"}
         />
-      </td>
+      )}
 
-      {/* Suggested Price r/o */}
-      <td style={{ ...td, width: 88 }}>
+      {/* Available */}
+      {cell("available",
         <RO
-          value={currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : suggestedPrice !== null ? `$${suggestedPrice.toFixed(2)}` : "—"}
+          value={p ? String(available) : "—"}
           align="right"
+          tone={!p ? "subdued" : available <= 0 ? "critical" : undefined}
         />
-      </td>
+      )}
 
-      {/* Current Stock r/o */}
-      <td style={{ ...td, width: 75 }}>
-        <RO
-          value={p ? String(currentQty) : "—"}
-          align="right"
-          tone={currentQty <= 0 ? "critical" : undefined}
-        />
-      </td>
+      {/* On Order */}
+      {cell("onOrder", <RO value={String(onOrder)} align="right" />)}
+
+      {/* Qty Ordered (editable) */}
+      {cell("qty",
+        <TI value={item.qtyOrdered} onChange={(v) => onChange(item.id, "qtyOrdered", v)} type="number" align="right" disabled={disabled} />
+      )}
+
+      {/* Qty Received */}
+      {cell("qtyReceived", <RO value={String(item.qtyReceived)} align="right" />)}
+
+      {/* Qty Rejected */}
+      {cell("qtyRejected",
+        <RO value={String(item.qtyRejected)} align="right" tone={item.qtyRejected > 0 ? "critical" : undefined} />
+      )}
+
+      {/* Line Total */}
+      {cell("lineTotal", <RO value={`$${lineTotal.toFixed(2)}`} align="right" bold />)}
 
       {/* Remove */}
-      <td style={{ ...td, width: 48, textAlign: "center" }}>
+      <td style={{ ...td, width: 36, textAlign: "center" }}>
         <button
           type="button"
           onClick={() => onRemove(item.id)}
           disabled={isOnly || disabled}
+          title="Remove row"
           style={{
             background: "none",
             border: "none",
             cursor: isOnly || disabled ? "default" : "pointer",
-            color: isOnly || disabled ? "#c9cccf" : "#d72c0d",
-            fontSize: 18,
+            color: isOnly || disabled ? "#d1d5db" : "#d72c0d",
+            fontSize: 20,
             lineHeight: 1,
-            padding: "2px 4px",
+            padding: "0 4px",
+            display: "flex",
+            alignItems: "center",
           }}
-          title="Remove row"
         >
           ×
         </button>
@@ -343,82 +353,75 @@ function POLineItemRow({
 
 export function POSpreadsheet({
   items,
+  visibleCols,
   totalLandedCost,
   totalQtyOrdered,
   onChange,
   onRemove,
-  onAddRow,
   disabled = false,
 }: POSpreadsheetProps) {
   const landedPerUnit = totalQtyOrdered > 0 ? totalLandedCost / totalQtyOrdered : 0;
 
+  const activeCols = ALL_COLS.filter((c) => visibleCols.has(c.key));
+
   const thStyle: React.CSSProperties = {
-    padding: "6px 6px",
+    padding: "7px 6px",
     background: "#f6f6f7",
     borderBottom: "2px solid #e1e3e5",
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: 600,
     color: "#6d7175",
     whiteSpace: "nowrap",
     userSelect: "none",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
   };
 
   return (
-    <div>
-      <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid #e1e3e5" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", minWidth: COLS.reduce((s, c) => s + c.width, 0) }}>
-          <thead>
+    <div style={{ overflowX: "auto", width: "100%" }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+        <colgroup>
+          {activeCols.map((c) => (
+            <col key={c.key} style={{ width: c.width }} />
+          ))}
+          <col style={{ width: 36 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {activeCols.map((c) => (
+              <th key={c.key} style={{ ...thStyle, textAlign: c.align }}>
+                {c.label}
+              </th>
+            ))}
+            <th style={{ ...thStyle, width: 36 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
             <tr>
-              {COLS.map((col, i) => (
-                <th key={i} style={{ ...thStyle, width: col.width, textAlign: col.align }}>
-                  {col.label}
-                </th>
-              ))}
+              <td
+                colSpan={activeCols.length + 1}
+                style={{ padding: "40px 24px", textAlign: "center", color: "#6d7175", fontSize: 14 }}
+              >
+                No line items yet. Click <strong>Add Row</strong> to begin.
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={COLS.length} style={{ padding: "32px", textAlign: "center", color: "#6d7175", fontSize: 14 }}>
-                  No line items. Click "Add Row" to begin.
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => (
-                <POLineItemRow
-                  key={item.id}
-                  item={item}
-                  landedPerUnit={landedPerUnit}
-                  onChange={onChange}
-                  onRemove={onRemove}
-                  isOnly={items.length === 1}
-                  disabled={disabled}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      {!disabled && (
-        <div style={{ marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={onAddRow}
-            style={{
-              background: "none",
-              border: "1px dashed #c9cccf",
-              borderRadius: 6,
-              padding: "6px 16px",
-              cursor: "pointer",
-              fontSize: 13,
-              color: "#005bd3",
-              width: "100%",
-            }}
-          >
-            + Add Row
-          </button>
-        </div>
-      )}
+          ) : (
+            items.map((item) => (
+              <POLineItemRow
+                key={item.id}
+                item={item}
+                visibleCols={visibleCols}
+                landedPerUnit={landedPerUnit}
+                onChange={onChange}
+                onRemove={onRemove}
+                isOnly={items.length === 1}
+                disabled={disabled}
+              />
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
