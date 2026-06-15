@@ -1,16 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "sqlite"
-  url      = "file:dev.sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -31,4 +25,186 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Products — mirror of Shopify variant records, store-scoped
+// ---------------------------------------------------------------------------
+model Product {
+  id               String   @id @default(cuid())
+  shop             String
+  shopifyProductId String
+  shopifyVariantId String
+  sku              String?
+  barcode          String?
+  title            String
+  currentPrice     Float    @default(0)
+  currentQuantity  Int      @default(0)
+  avgCost          Float    @default(0)
+  avgLandedCost    Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  supplierMappings SupplierSkuMapping[]
+  poLineItems      PurchaseOrderLineItem[]
+  receivingRecords ReceivingRecord[]
+
+  @@unique([shop, shopifyVariantId])
+  @@index([shop, sku])
+  @@index([shop, barcode])
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers
+// ---------------------------------------------------------------------------
+model Supplier {
+  id           String   @id @default(cuid())
+  shop         String
+  name         String
+  currency     String   @default("USD")
+  leadTimeDays Int      @default(0)
+  contactInfo  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  skuMappings    SupplierSkuMapping[]
+  offers         Offer[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([shop, name])
+  @@index([shop])
+}
+
+// ---------------------------------------------------------------------------
+// Supplier SKU Mappings — maps supplier identifiers to internal products
+// ---------------------------------------------------------------------------
+model SupplierSkuMapping {
+  id           String   @id @default(cuid())
+  shop         String
+  supplierId   String
+  productId    String
+  supplierSku  String
+  unitCost     Float    @default(0)
+  packSize     Int      @default(1)
+  currency     String   @default("USD")
+  lastUsedCost Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, supplierId, supplierSku])
+  @@index([shop])
+}
+
+// ---------------------------------------------------------------------------
+// Offers / Reserves — pre-purchase layer before a PO is created
+// ---------------------------------------------------------------------------
+model Offer {
+  id                 String      @id @default(cuid())
+  shop               String
+  supplierId         String
+  status             String      @default("draft")
+  totalEstimatedCost Float       @default(0)
+  eta                DateTime?
+  endDate            DateTime?
+  notes              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  supplier Supplier    @relation(fields: [supplierId], references: [id])
+  items    OfferItem[]
+
+  @@index([shop])
+  @@index([shop, status])
+}
+
+model OfferItem {
+  id           String  @id @default(cuid())
+  offerId      String
+  productId    String?
+  supplierSku  String?
+  description  String?
+  qtyReserved  Int     @default(0)
+  qtyFulfilled Int     @default(0)
+  unitCost     Float   @default(0)
+
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Purchase Orders
+// ---------------------------------------------------------------------------
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  shop            String
+  poNumber        String
+  supplierId      String
+  status          String   @default("draft")
+  currency        String   @default("USD")
+  exchangeRate    Float    @default(1)
+  subtotal        Float    @default(0)
+  freightCost     Float    @default(0)
+  tax             Float    @default(0)
+  discounts       Float    @default(0)
+  otherCosts      Float    @default(0)
+  adjustment      Float    @default(0)
+  totalLandedCost Float    @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  supplier         Supplier                @relation(fields: [supplierId], references: [id])
+  lineItems        PurchaseOrderLineItem[]
+  receivingRecords ReceivingRecord[]
+
+  @@unique([shop, poNumber])
+  @@index([shop])
+  @@index([shop, status])
+}
+
+// ---------------------------------------------------------------------------
+// PO Line Items
+// ---------------------------------------------------------------------------
+model PurchaseOrderLineItem {
+  id                String  @id @default(cuid())
+  poId              String
+  productId         String?
+  supplierSku       String?
+  description       String?
+  qtyOrdered        Int     @default(0)
+  qtyReceived       Int     @default(0)
+  qtyRejected       Int     @default(0)
+  qtyBackordered    Int     @default(0)
+  unitCost          Float   @default(0)
+  landedCostPerUnit Float   @default(0)
+  action            String  @default("restock")
+
+  purchaseOrder    PurchaseOrder    @relation(fields: [poId], references: [id], onDelete: Cascade)
+  product          Product?         @relation(fields: [productId], references: [id])
+  receivingRecords ReceivingRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Receiving Records — log of what was received per PO / line item
+// ---------------------------------------------------------------------------
+model ReceivingRecord {
+  id             String   @id @default(cuid())
+  shop           String
+  poId           String
+  lineItemId     String?
+  productId      String?
+  qtyReceived    Int      @default(0)
+  qtyRejected    Int      @default(0)
+  qtyBackordered Int      @default(0)
+  action         String   @default("restock")
+  createdAt      DateTime @default(now())
+
+  purchaseOrder PurchaseOrder          @relation(fields: [poId], references: [id])
+  lineItem      PurchaseOrderLineItem? @relation(fields: [lineItemId], references: [id])
+  product       Product?               @relation(fields: [productId], references: [id])
+
+  @@index([shop])
+  @@index([poId])
 }

@@ -1,4 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -13,13 +14,16 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import { ImageIcon } from "@shopify/polaris-icons";
 
 import { authenticate } from "../shopify.server";
+import { getProducts } from "../models/product.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return null;
+  const { session } = await authenticate.admin(request);
+  const products = await getProducts(session.shop);
+  return { products };
 };
 
-const products: {
+// keep type for row shape
+const _unused: {
   id: string;
   title: string;
   sku: string;
@@ -32,12 +36,13 @@ const products: {
 }[] = [];
 
 export default function Products() {
+  const { products } = useLoaderData<typeof loader>();
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(products);
 
   const rowMarkup = products.map(
     (
-      { id, title, sku, barcode, currentQuantity, currentPrice, avgCost, avgLandedCost, image },
+      { id, title, sku, barcode, currentQuantity, currentPrice, avgCost, avgLandedCost },
       index,
     ) => (
       <IndexTable.Row
@@ -49,7 +54,7 @@ export default function Products() {
         <IndexTable.Cell>
           <InlineStack gap="300" blockAlign="center">
             <Thumbnail
-              source={image || ImageIcon}
+              source={ImageIcon}
               alt={title}
               size="small"
             />

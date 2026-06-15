@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -16,10 +16,27 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return null;
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  const [openPOs, openOffers, pendingReceipts, supplierCount, recentPOs] =
+    await Promise.all([
+      prisma.purchaseOrder.count({ where: { shop, status: { in: ["open", "in_transit"] } } }),
+      prisma.offer.count({ where: { shop, status: { in: ["draft", "reserved", "partial"] } } }),
+      prisma.purchaseOrder.count({ where: { shop, status: { in: ["open", "in_transit", "partially_received"] } } }),
+      prisma.supplier.count({ where: { shop } }),
+      prisma.purchaseOrder.findMany({
+        where: { shop },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: { supplier: { select: { name: true } } },
+      }),
+    ]);
+
+  return { openPOs, openOffers, pendingReceipts, supplierCount, recentPOs };
 };
 
 function StatCard({
@@ -59,6 +76,8 @@ function StatCard({
 }
 
 export default function Dashboard() {
+  const { openPOs, openOffers, pendingReceipts, supplierCount, recentPOs } =
+    useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
   return (
@@ -66,10 +85,10 @@ export default function Dashboard() {
       <TitleBar title="ShelfFlow" />
       <BlockStack gap="600">
         <InlineGrid columns={4} gap="400">
-          <StatCard label="Open Purchase Orders" value={0} tone="info" />
-          <StatCard label="Open Offers / Reserves" value={0} tone="info" />
-          <StatCard label="Pending Receipts" value={0} tone="warning" />
-          <StatCard label="Suppliers" value={0} />
+          <StatCard label="Open Purchase Orders" value={openPOs} tone={openPOs > 0 ? "info" : undefined} />
+          <StatCard label="Open Offers / Reserves" value={openOffers} tone={openOffers > 0 ? "info" : undefined} />
+          <StatCard label="Pending Receipts" value={pendingReceipts} tone={pendingReceipts > 0 ? "warning" : undefined} />
+          <StatCard label="Suppliers" value={supplierCount} />
         </InlineGrid>
 
         <Layout>
@@ -89,19 +108,31 @@ export default function Dashboard() {
                     </Button>
                   </InlineStack>
                   <Divider />
-                  <Box paddingBlock="600">
-                    <BlockStack gap="200" align="center">
-                      <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
-                        No purchase orders yet.
-                      </Text>
-                      <Button
-                        variant="primary"
-                        onClick={() => navigate("/app/purchase-orders")}
-                      >
-                        Create first PO
-                      </Button>
+                  {recentPOs.length === 0 ? (
+                    <Box paddingBlock="600">
+                      <BlockStack gap="200" align="center">
+                        <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                          No purchase orders yet.
+                        </Text>
+                        <Button variant="primary" onClick={() => navigate("/app/purchase-orders/new")}>
+                          Create first PO
+                        </Button>
+                      </BlockStack>
+                    </Box>
+                  ) : (
+                    <BlockStack gap="200">
+                      {recentPOs.map((po) => (
+                        <InlineStack key={po.id} align="space-between" blockAlign="center">
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
+                          <Text as="span" variant="bodyMd" tone="subdued">{po.supplier.name}</Text>
+                          <Text as="span" variant="bodyMd">${po.totalLandedCost.toFixed(2)}</Text>
+                          <Badge tone={po.status === "received" ? "success" : po.status === "open" ? "info" : undefined}>
+                            {po.status}
+                          </Badge>
+                        </InlineStack>
+                      ))}
                     </BlockStack>
-                  </Box>
+                  )}
                 </BlockStack>
               </Card>
 
