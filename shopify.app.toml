@@ -2,7 +2,7 @@
 
 name = "StoreFlowtest"
 client_id = "62f7f03d15494b82a6a4be06578c0993"
-application_url = "https://defence-crystal-frequently-squad.trycloudflare.com"
+application_url = "https://shelfflow.onrender.com"
 embedded = true
 
 [access_scopes]
@@ -24,7 +24,7 @@ api_version = "2026-04"
 
 [auth]
 redirect_urls = [
-  "https://defence-crystal-frequently-squad.trycloudflare.com/auth/callback",
-  "https://defence-crystal-frequently-squad.trycloudflare.com/auth/shopify/callback",
-  "https://defence-crystal-frequently-squad.trycloudflare.com/api/auth/callback"
+  "https://shelfflow.onrender.com/auth/callback",
+  "https://shelfflow.onrender.com/auth/shopify/callback",
+  "https://shelfflow.onrender.com/api/auth/callback"
 ]
