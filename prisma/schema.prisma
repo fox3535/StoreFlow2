@@ -28,6 +28,19 @@ model Session {
 }
 
 // ---------------------------------------------------------------------------
+// Per-shop app settings
+// ---------------------------------------------------------------------------
+model Settings {
+  id               String   @id @default(cuid())
+  shop             String   @unique
+  defaultCurrency  String   @default("USD")
+  receivingDefault String   @default("restock")
+  syncMode         String   @default("manual")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Products — mirror of Shopify variant records, store-scoped
 // ---------------------------------------------------------------------------
 model Product {
