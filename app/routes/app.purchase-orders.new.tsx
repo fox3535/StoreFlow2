@@ -23,14 +23,18 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getSuppliers } from "../models/supplier.server";
 import { createPurchaseOrder } from "../models/purchase-order.server";
+import { getSettings } from "../models/settings.server";
 
 // ---------------------------------------------------------------------------
 // Loader
 // ---------------------------------------------------------------------------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const suppliers = await getSuppliers(session.shop);
-  return { suppliers };
+  const [suppliers, settings] = await Promise.all([
+    getSuppliers(session.shop),
+    getSettings(session.shop),
+  ]);
+  return { suppliers, settings };
 };
 
 // ---------------------------------------------------------------------------
@@ -104,13 +108,13 @@ type LineItem = {
 // Component
 // ---------------------------------------------------------------------------
 export default function NewPurchaseOrder() {
-  const { suppliers } = useLoaderData<typeof loader>();
+  const { suppliers, settings } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
 
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(settings.defaultCurrency);
   const [exchangeRate, setExchangeRate] = useState("1");
   const [freightCost, setFreightCost] = useState("0");
   const [tax, setTax] = useState("0");
@@ -118,6 +122,7 @@ export default function NewPurchaseOrder() {
   const [otherCosts, setOtherCosts] = useState("0");
   const [adjustment, setAdjustment] = useState("0");
   const [notes, setNotes] = useState("");
+  const defaultAction = settings.receivingDefault;
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: crypto.randomUUID(), description: "", supplierSku: "", qtyOrdered: "1", unitCost: "0" },
   ]);
