@@ -14,7 +14,6 @@ import {
   TextField,
   Banner,
   Box,
-  InlineGrid,
   Select,
   Popover,
   ChoiceList,
@@ -36,19 +35,19 @@ import { ALL_COLS, DEFAULT_VISIBLE, POSpreadsheet } from "../components/POSpread
 // ---------------------------------------------------------------------------
 
 const STATUS_BADGE: Record<string, { tone: "info" | "warning" | "success" | "critical" | undefined; label: string }> = {
-  draft:              { tone: undefined,  label: "Draft" },
-  open:               { tone: "info",     label: "Open" },
-  in_transit:         { tone: "warning",  label: "In Transit" },
-  partially_received: { tone: "warning",  label: "Partially Received" },
-  received:           { tone: "success",  label: "Received" },
-  cancelled:          { tone: "critical", label: "Cancelled" },
+  draft:              { tone: undefined,  label: "Draft"               },
+  open:               { tone: "info",     label: "Open"                },
+  in_transit:         { tone: "warning",  label: "In Transit"          },
+  partially_received: { tone: "warning",  label: "Partially Received"  },
+  received:           { tone: "success",  label: "Received"            },
+  cancelled:          { tone: "critical", label: "Cancelled"           },
 };
 
 const STATUS_TRANSITIONS: Record<string, { label: string; next: string; critical?: boolean }[]> = {
-  draft:              [{ label: "Send to Supplier",  next: "open" }],
-  open:               [{ label: "Mark In Transit",   next: "in_transit" }, { label: "Cancel PO", next: "cancelled", critical: true }],
-  in_transit:         [{ label: "Mark Received",     next: "received" }],
-  partially_received: [{ label: "Mark Received",     next: "received" }],
+  draft:              [{ label: "Send to Supplier", next: "open" }],
+  open:               [{ label: "Mark In Transit",  next: "in_transit" }, { label: "Cancel", next: "cancelled", critical: true }],
+  in_transit:         [{ label: "Mark Received",    next: "received" }],
+  partially_received: [{ label: "Mark Received",    next: "received" }],
   received:           [],
   cancelled:          [],
 };
@@ -80,13 +79,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   if (intent === "save") {
     await updatePurchaseOrder(session.shop, params.id!, {
-      notes:        (fd.get("notes") as string)       || null,
-      exchangeRate: parseFloat(fd.get("exchangeRate") as string) || 1,
-      freightCost:  parseFloat(fd.get("freightCost")  as string) || 0,
-      tax:          parseFloat(fd.get("tax")          as string) || 0,
-      discounts:    parseFloat(fd.get("discounts")    as string) || 0,
-      otherCosts:   parseFloat(fd.get("otherCosts")   as string) || 0,
-      adjustment:   parseFloat(fd.get("adjustment")   as string) || 0,
+      notes:        (fd.get("notes") as string)                     || null,
+      exchangeRate: parseFloat(fd.get("exchangeRate") as string)    || 1,
+      freightCost:  parseFloat(fd.get("freightCost")  as string)    || 0,
+      tax:          parseFloat(fd.get("tax")          as string)    || 0,
+      discounts:    parseFloat(fd.get("discounts")    as string)    || 0,
+      otherCosts:   parseFloat(fd.get("otherCosts")   as string)    || 0,
+      adjustment:   parseFloat(fd.get("adjustment")   as string)    || 0,
       lineItems:    JSON.parse((fd.get("lineItemsJson")  as string) || "[]"),
       removedIds:   JSON.parse((fd.get("removedIdsJson") as string) || "[]"),
     });
@@ -111,6 +110,8 @@ function calcLanded(sub: number, freight: number, tax: number, disc: number, oth
   return (sub + freight + tax + other - disc) * (rate || 1) + adj;
 }
 
+function fmt(n: number) { return `$${n.toFixed(2)}`; }
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -120,13 +121,13 @@ export default function PurchaseOrderDetail() {
   const navigate = useNavigate();
   const fetcher  = useFetcher<{ saved?: boolean; ok?: boolean }>();
 
-  const canEdit      = EDITABLE.has(po.status);
-  const badge        = STATUS_BADGE[po.status] ?? { tone: undefined, label: po.status };
-  const transitions  = STATUS_TRANSITIONS[po.status] ?? [];
-  const saving       = fetcher.state !== "idle";
-  const justSaved    = fetcher.state === "idle" && (fetcher.data as any)?.saved;
+  const canEdit     = EDITABLE.has(po.status);
+  const badge       = STATUS_BADGE[po.status] ?? { tone: undefined, label: po.status };
+  const transitions = STATUS_TRANSITIONS[po.status] ?? [];
+  const saving      = fetcher.state !== "idle";
+  const justSaved   = fetcher.state === "idle" && (fetcher.data as any)?.saved;
 
-  // ── Line items ────────────────────────────────────────────────────────────
+  // ── Line items ─────────────────────────────────────────────────────────
   const [items, setItems] = useState<EditItem[]>(() =>
     po.lineItems.map((li) => ({
       id:          li.id,
@@ -141,7 +142,7 @@ export default function PurchaseOrderDetail() {
   );
   const [removedIds, setRemovedIds] = useState<string[]>([]);
 
-  // ── Cost fields ───────────────────────────────────────────────────────────
+  // ── Cost fields ──────────────────────────────────────────────────────────
   const [freight,      setFreight]      = useState(String(po.freightCost));
   const [tax,          setTax]          = useState(String(po.tax));
   const [discounts,    setDiscounts]    = useState(String(po.discounts));
@@ -151,11 +152,11 @@ export default function PurchaseOrderDetail() {
   const [currency,     setCurrency]     = useState(po.currency);
   const [notes,        setNotes]        = useState(po.notes ?? "");
 
-  // ── UI state ──────────────────────────────────────────────────────────────
-  const [dirty,           setDirty]           = useState(false);
-  const [costOpen,        setCostOpen]        = useState(true);
-  const [colPopoverOpen,  setColPopoverOpen]  = useState(false);
-  const [visibleColKeys,  setVisibleColKeys]  = useState<ColKey[]>(
+  // ── UI state ─────────────────────────────────────────────────────────────
+  const [dirty,          setDirty]          = useState(false);
+  const [costExpanded,   setCostExpanded]   = useState(true);
+  const [colPopoverOpen, setColPopoverOpen] = useState(false);
+  const [visibleColKeys, setVisibleColKeys] = useState<ColKey[]>(
     () => Array.from(DEFAULT_VISIBLE) as ColKey[],
   );
 
@@ -166,14 +167,25 @@ export default function PurchaseOrderDetail() {
     }
   }, [fetcher.state, fetcher.data]);
 
-  // ── Derived ───────────────────────────────────────────────────────────────
-  const subtotal = items.reduce((s, i) => s + toNum(i.qtyOrdered) * toNum(i.unitCost), 0);
-  const totalQty = items.reduce((s, i) => s + toNum(i.qtyOrdered), 0);
-  const totalLandedCost = calcLanded(subtotal, toNum(freight), toNum(tax), toNum(discounts), toNum(otherCosts), toNum(exchangeRate), toNum(adjustment));
-  const visibleCols = new Set(visibleColKeys);
+  // ── Derived ──────────────────────────────────────────────────────────────
+  const subtotal        = items.reduce((s, i) => s + toNum(i.qtyOrdered) * toNum(i.unitCost), 0);
+  const totalQty        = items.reduce((s, i) => s + toNum(i.qtyOrdered), 0);
+  const fNum            = toNum(freight);
+  const tNum            = toNum(tax);
+  const dNum            = toNum(discounts);
+  const oNum            = toNum(otherCosts);
+  const aNum            = toNum(adjustment);
+  const rNum            = toNum(exchangeRate) || 1;
+  const totalLandedCost = calcLanded(subtotal, fNum, tNum, dNum, oNum, rNum, aNum);
+  const landedPerUnit   = totalQty > 0 ? totalLandedCost / totalQty : 0;
+  const visibleCols     = new Set(visibleColKeys);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleChange = useCallback((id: string, field: keyof Pick<EditItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) => {
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  const handleChange = useCallback((
+    id: string,
+    field: keyof Pick<EditItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">,
+    value: string,
+  ) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
     setDirty(true);
   }, []);
@@ -194,7 +206,7 @@ export default function PurchaseOrderDetail() {
 
   function handleSave() {
     const fd = new FormData();
-    fd.append("intent", "save");
+    fd.append("intent",        "save");
     fd.append("notes",         notes);
     fd.append("exchangeRate",  exchangeRate);
     fd.append("freightCost",   freight);
@@ -203,11 +215,8 @@ export default function PurchaseOrderDetail() {
     fd.append("otherCosts",    otherCosts);
     fd.append("adjustment",    adjustment);
     fd.append("lineItemsJson",  JSON.stringify(items.map((i) => ({
-      id:          i.id,
-      description: i.description,
-      supplierSku: i.supplierSku || null,
-      qtyOrdered:  toNum(i.qtyOrdered),
-      unitCost:    toNum(i.unitCost),
+      id: i.id, description: i.description, supplierSku: i.supplierSku || null,
+      qtyOrdered: toNum(i.qtyOrdered), unitCost: toNum(i.unitCost),
     }))));
     fd.append("removedIdsJson", JSON.stringify(removedIds));
     fetcher.submit(fd, { method: "post" });
@@ -235,10 +244,20 @@ export default function PurchaseOrderDetail() {
     return col && !col.alwaysVisible;
   });
 
-  // ── Cost field component ──────────────────────────────────────────────────
-  function CF({ label, value, onChange, helpText, prefix = "$" }: {
+  // ── Row for cost breakdown (only shows non-zero items) ────────────────────
+  function CostRow({ label, value, tone }: { label: string; value: string; tone?: "success" }) {
+    return (
+      <InlineStack align="space-between">
+        <Text as="span" variant="bodySm" tone="subdued">{label}</Text>
+        <Text as="span" variant="bodySm" tone={tone}>{value}</Text>
+      </InlineStack>
+    );
+  }
+
+  // ── Editable cost field ───────────────────────────────────────────────────
+  function CF({ label, value, onChange, prefix = "$", helpText }: {
     label: string; value: string; onChange: (v: string) => void;
-    helpText?: string; prefix?: string;
+    prefix?: string; helpText?: string;
   }) {
     return (
       <TextField
@@ -257,8 +276,22 @@ export default function PurchaseOrderDetail() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Page fullWidth>
+      {/* Responsive grid styles injected inline */}
+      <style>{`
+        .po-detail-outer {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 288px;
+          gap: 16px;
+          align-items: start;
+        }
+        @media (max-width: 900px) {
+          .po-detail-outer { grid-template-columns: 1fr; }
+          .po-detail-panel { position: static !important; }
+        }
+      `}</style>
+
       <TitleBar title={po.poNumber}>
-        <button onClick={() => navigate("/app/purchase-orders")}>Back to POs</button>
+        <button onClick={() => navigate("/app/purchase-orders")}>All POs</button>
         {canEdit && (
           <button variant="primary" onClick={handleSave} disabled={saving || !dirty}>
             {saving ? "Saving…" : dirty ? "Save Changes" : "Saved"}
@@ -283,164 +316,143 @@ export default function PurchaseOrderDetail() {
           </Banner>
         )}
 
-        {/* ── Header bar ──────────────────────────────────────────────────── */}
+        {/* ── PO header ───────────────────────────────────────────────────── */}
         <Card>
-          <InlineStack align="space-between" blockAlign="center" wrap={false}>
-            <BlockStack gap="050">
+          <InlineStack align="space-between" blockAlign="center" wrap={false} gap="400">
+            <BlockStack gap="100">
               <InlineStack gap="300" blockAlign="center">
                 <Text as="h1" variant="headingLg" fontWeight="bold">{po.poNumber}</Text>
                 <Badge tone={badge.tone}>{badge.label}</Badge>
               </InlineStack>
               <Text as="p" variant="bodyMd" tone="subdued">
-                {po.supplier.name} · {items.length} item{items.length !== 1 ? "s" : ""} · {totalQty} units · Created {new Date(po.createdAt).toLocaleDateString()}
+                {po.supplier.name} · {items.length} item{items.length !== 1 ? "s" : ""} · {totalQty} units · {new Date(po.createdAt).toLocaleDateString()}
               </Text>
             </BlockStack>
 
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200">
               {transitions.map((t) => (
-                <Button
-                  key={t.next}
+                <Button key={t.next} size="slim"
                   tone={t.critical ? "critical" : undefined}
                   variant={t.critical ? undefined : "primary"}
-                  size="slim"
-                  onClick={() => changeStatus(t.next)}
-                  loading={saving}
+                  onClick={() => changeStatus(t.next)} loading={saving}
                 >
                   {t.label}
                 </Button>
               ))}
-              {po.status === "received" && (
-                <Badge tone="success">Fully Received</Badge>
-              )}
-              {po.status === "cancelled" && (
-                <Badge tone="critical">Cancelled</Badge>
-              )}
             </InlineStack>
           </InlineStack>
         </Card>
 
-        {/* ── Spreadsheet ─────────────────────────────────────────────────── */}
-        <Card padding="0">
-          {/* Table toolbar */}
-          <Box paddingBlock="300" paddingInline="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">Line Items</Text>
-              <InlineStack gap="200">
-                {/* Column visibility toggle */}
-                <Popover
-                  active={colPopoverOpen}
-                  activator={
-                    <Button
-                      size="slim"
-                      onClick={() => setColPopoverOpen((v) => !v)}
+        {/* ── Two-column body ─────────────────────────────────────────────── */}
+        <div className="po-detail-outer">
+
+          {/* ── LEFT: line-items table ───────────────────────────────────── */}
+          <div>
+            <Card padding="0">
+              {/* Toolbar */}
+              <Box paddingBlock="300" paddingInline="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h2" variant="headingMd">Line Items</Text>
+                  <InlineStack gap="200">
+                    {/* Column toggle */}
+                    <Popover
+                      active={colPopoverOpen}
+                      activator={
+                        <Button size="slim" onClick={() => setColPopoverOpen((v) => !v)}>
+                          {`Columns (${visibleColKeys.length})`}
+                        </Button>
+                      }
+                      onClose={() => setColPopoverOpen(false)}
+                      preferredAlignment="right"
                     >
-                      {`Columns (${visibleColKeys.length})`}
-                    </Button>
-                  }
-                  onClose={() => setColPopoverOpen(false)}
-                  preferredAlignment="right"
-                >
-                  <Box padding="400" minWidth="200px">
-                    <BlockStack gap="300">
-                      <Text as="p" variant="headingSm">Show / Hide Columns</Text>
-                      <ChoiceList
-                        title=""
-                        titleHidden
-                        allowMultiple
-                        choices={toggleChoices}
-                        selected={toggleableSelected}
-                        onChange={handleColChange}
-                      />
-                    </BlockStack>
-                  </Box>
-                </Popover>
+                      <Box padding="400">
+                        <BlockStack gap="300">
+                          <Text as="p" variant="headingSm">Show / Hide Columns</Text>
+                          <ChoiceList
+                            title="" titleHidden allowMultiple
+                            choices={toggleChoices}
+                            selected={toggleableSelected}
+                            onChange={handleColChange}
+                          />
+                        </BlockStack>
+                      </Box>
+                    </Popover>
 
-                {canEdit && (
-                  <Button size="slim" onClick={handleAddRow}>
-                    Add Row
-                  </Button>
-                )}
-              </InlineStack>
-            </InlineStack>
-          </Box>
+                    {canEdit && (
+                      <Button size="slim" onClick={handleAddRow}>Add Row</Button>
+                    )}
+                  </InlineStack>
+                </InlineStack>
+              </Box>
 
-          <Divider />
-
-          <POSpreadsheet
-            items={items}
-            visibleCols={visibleCols}
-            totalLandedCost={totalLandedCost}
-            totalQtyOrdered={totalQty}
-            onChange={handleChange}
-            onRemove={handleRemove}
-            disabled={!canEdit}
-          />
-        </Card>
-
-        {/* ── Cost Summary (collapsible) ────────────────────────────────── */}
-        <Card>
-          {/* Always-visible summary strip */}
-          <InlineStack align="space-between" blockAlign="center">
-            <InlineStack gap="500" blockAlign="center">
-              <Text as="h2" variant="headingMd">Cost Summary</Text>
-              <InlineStack gap="400">
-                <BlockStack gap="0">
-                  <Text as="span" variant="bodySm" tone="subdued">Subtotal</Text>
-                  <Text as="span" variant="bodyMd" fontWeight="semibold">${subtotal.toFixed(2)}</Text>
-                </BlockStack>
-                {toNum(freight) > 0 && (
-                  <BlockStack gap="0">
-                    <Text as="span" variant="bodySm" tone="subdued">Freight</Text>
-                    <Text as="span" variant="bodyMd">+${toNum(freight).toFixed(2)}</Text>
-                  </BlockStack>
-                )}
-                {toNum(tax) > 0 && (
-                  <BlockStack gap="0">
-                    <Text as="span" variant="bodySm" tone="subdued">Tax</Text>
-                    <Text as="span" variant="bodyMd">+${toNum(tax).toFixed(2)}</Text>
-                  </BlockStack>
-                )}
-                {toNum(discounts) > 0 && (
-                  <BlockStack gap="0">
-                    <Text as="span" variant="bodySm" tone="subdued">Discount</Text>
-                    <Text as="span" variant="bodyMd" tone="success">−${toNum(discounts).toFixed(2)}</Text>
-                  </BlockStack>
-                )}
-                <BlockStack gap="0">
-                  <Text as="span" variant="bodySm" tone="subdued">Total Landed</Text>
-                  <Text as="span" variant="headingMd" fontWeight="bold">${totalLandedCost.toFixed(2)}</Text>
-                </BlockStack>
-                {totalQty > 0 && (
-                  <BlockStack gap="0">
-                    <Text as="span" variant="bodySm" tone="subdued">Per Unit</Text>
-                    <Text as="span" variant="bodyMd">${(totalLandedCost / totalQty).toFixed(3)}</Text>
-                  </BlockStack>
-                )}
-              </InlineStack>
-            </InlineStack>
-
-            <InlineStack gap="200">
-              {canEdit && dirty && (
-                <Button variant="primary" size="slim" onClick={handleSave} loading={saving}>
-                  Save Changes
-                </Button>
-              )}
-              <Button
-                size="slim"
-                onClick={() => setCostOpen((v) => !v)}
-              >
-                {costOpen ? "Hide Cost Fields ▲" : "Edit Costs ▼"}
-              </Button>
-            </InlineStack>
-          </InlineStack>
-
-          {/* Expandable cost fields */}
-          <Collapsible open={costOpen} id="cost-summary-fields">
-            <Box paddingBlockStart="400">
               <Divider />
-              <Box paddingBlockStart="400">
-                <BlockStack gap="400">
-                  <InlineGrid columns={{ xs: 2, sm: 3, md: 4, lg: 7 }} gap="300">
+
+              <POSpreadsheet
+                items={items}
+                visibleCols={visibleCols}
+                totalLandedCost={totalLandedCost}
+                totalQtyOrdered={totalQty}
+                onChange={handleChange}
+                onRemove={handleRemove}
+                disabled={!canEdit}
+              />
+            </Card>
+          </div>
+
+          {/* ── RIGHT: cost summary panel ────────────────────────────────── */}
+          <div className="po-detail-panel" style={{ position: "sticky", top: 16 }}>
+            <Card>
+              <BlockStack gap="400">
+
+                {/* Panel header */}
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h2" variant="headingMd">Cost Summary</Text>
+                  <Button
+                    size="slim"
+                    variant="plain"
+                    onClick={() => setCostExpanded((v) => !v)}
+                  >
+                    {costExpanded ? "Collapse ▲" : "Expand ▼"}
+                  </Button>
+                </InlineStack>
+
+                {/* Always-visible totals */}
+                <BlockStack gap="200">
+                  <CostRow label="Subtotal"   value={fmt(subtotal)} />
+                  {fNum > 0 && <CostRow label="Freight"   value={`+${fmt(fNum)}`} />}
+                  {tNum > 0 && <CostRow label="Tax"       value={`+${fmt(tNum)}`} />}
+                  {oNum > 0 && <CostRow label="Duties"    value={`+${fmt(oNum)}`} />}
+                  {dNum > 0 && <CostRow label="Discounts" value={`−${fmt(dNum)}`} tone="success" />}
+                  {rNum !== 1 && <CostRow label="Rate" value={`×${rNum.toFixed(4)}`} />}
+                  {aNum !== 0 && <CostRow label="Adjustment" value={fmt(aNum)} />}
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">Total Landed</Text>
+                    <Text as="span" variant="headingMd" fontWeight="bold">
+                      {fmt(totalLandedCost)}
+                    </Text>
+                  </InlineStack>
+                  {landedPerUnit > 0 && (
+                    <InlineStack align="space-between">
+                      <Text as="span" variant="bodySm" tone="subdued">Per Unit</Text>
+                      <Text as="span" variant="bodySm">${landedPerUnit.toFixed(3)}</Text>
+                    </InlineStack>
+                  )}
+                  <InlineStack align="space-between">
+                    <Text as="span" variant="bodySm" tone="subdued">Currency</Text>
+                    <Text as="span" variant="bodySm">{currency}</Text>
+                  </InlineStack>
+                </BlockStack>
+
+                {/* Expandable cost inputs */}
+                <Collapsible open={costExpanded} id="cost-fields">
+                  <BlockStack gap="300">
+                    <Divider />
+
                     <Select
                       label="Currency"
                       options={CURRENCY_OPTIONS}
@@ -448,28 +460,60 @@ export default function PurchaseOrderDetail() {
                       onChange={(v) => { setCurrency(v); setDirty(true); }}
                       disabled={!canEdit}
                     />
-                    <CF label="Exchange Rate" value={exchangeRate} onChange={setExchangeRate} prefix="×" helpText="Multiplied" />
-                    <CF label="Freight" value={freight}    onChange={setFreight}    />
-                    <CF label="Tax"     value={tax}        onChange={setTax}        />
-                    <CF label="Duties / Other" value={otherCosts} onChange={setOtherCosts} />
-                    <CF label="Discounts" value={discounts} onChange={setDiscounts} helpText="Subtracted" />
-                    <CF label="Adjustment" value={adjustment} onChange={setAdjustment} helpText="Fixed adj." />
-                  </InlineGrid>
+                    <CF label="Exchange Rate" value={exchangeRate} onChange={setExchangeRate} prefix="×" helpText="Applied to subtotal" />
+                    <CF label="Freight / Shipping" value={freight}    onChange={setFreight}    />
+                    <CF label="Tax"                value={tax}        onChange={setTax}        />
+                    <CF label="Duties / Other"     value={otherCosts} onChange={setOtherCosts} />
+                    <CF label="Discounts"          value={discounts}  onChange={setDiscounts}  helpText="Subtracted from cost" />
+                    <CF label="Adjustment"         value={adjustment} onChange={setAdjustment} helpText="Fixed add after rate" />
 
-                  <TextField
-                    label="Notes"
-                    value={notes}
-                    onChange={(v) => { setNotes(v); setDirty(true); }}
-                    multiline={2}
-                    placeholder="Internal notes about this PO…"
-                    autoComplete="off"
-                    disabled={!canEdit}
-                  />
-                </BlockStack>
-              </Box>
-            </Box>
-          </Collapsible>
-        </Card>
+                    <Divider />
+
+                    <TextField
+                      label="Notes"
+                      value={notes}
+                      onChange={(v) => { setNotes(v); setDirty(true); }}
+                      multiline={3}
+                      placeholder="Internal notes…"
+                      autoComplete="off"
+                      disabled={!canEdit}
+                    />
+                  </BlockStack>
+                </Collapsible>
+
+                {/* Save button */}
+                {canEdit && (
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    onClick={handleSave}
+                    loading={saving}
+                    disabled={!dirty}
+                  >
+                    {dirty ? "Save Changes" : "Saved"}
+                  </Button>
+                )}
+
+                {/* Read-only status notices */}
+                {po.status === "received" && (
+                  <Box background="bg-surface-success" padding="300" borderRadius="200">
+                    <Text as="p" variant="bodySm" alignment="center" tone="success">
+                      ✓ This PO has been fully received.
+                    </Text>
+                  </Box>
+                )}
+                {po.status === "cancelled" && (
+                  <Box background="bg-surface-critical" padding="300" borderRadius="200">
+                    <Text as="p" variant="bodySm" alignment="center" tone="critical">
+                      This PO was cancelled.
+                    </Text>
+                  </Box>
+                )}
+
+              </BlockStack>
+            </Card>
+          </div>
+        </div>
 
       </BlockStack>
     </Page>
