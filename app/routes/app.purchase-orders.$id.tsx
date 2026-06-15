@@ -494,6 +494,32 @@ export default function PurchaseOrderDetail() {
                   </Button>
                 )}
 
+                {/* Source offer link */}
+                {(po as any).offer && (
+                  <>
+                    <Divider />
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodySm" tone="subdued">Source Offer</Text>
+                      <InlineStack align="space-between" blockAlign="center">
+                        <Button
+                          variant="plain"
+                          size="slim"
+                          onClick={() => navigate(`/app/offers/${(po as any).offer.id}`)}
+                        >
+                          {`OFF-${(po as any).offer.id.slice(-6).toUpperCase()}`}
+                        </Button>
+                        <Badge tone="success">Linked</Badge>
+                      </InlineStack>
+                      <InlineStack align="space-between">
+                        <Text as="span" variant="bodySm" tone="subdued">Offer Est.</Text>
+                        <Text as="span" variant="bodySm">
+                          ${(po as any).offer.totalEstimatedCost.toFixed(2)}
+                        </Text>
+                      </InlineStack>
+                    </BlockStack>
+                  </>
+                )}
+
                 {/* Read-only status notices */}
                 {po.status === "received" && (
                   <Box background="bg-surface-success" padding="300" borderRadius="200">

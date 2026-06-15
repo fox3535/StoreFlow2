@@ -30,7 +30,20 @@ export async function getOffers(shop: string) {
 export async function getOffer(shop: string, id: string) {
   return prisma.offer.findFirst({
     where: { shop, id },
-    include: { supplier: true, items: true },
+    include: {
+      supplier: true,
+      items: true,
+      purchaseOrders: {
+        select: {
+          id: true,
+          poNumber: true,
+          status: true,
+          totalLandedCost: true,
+          createdAt: true,
+          lineItems: { select: { qtyOrdered: true, qtyReceived: true } },
+        },
+      },
+    },
   });
 }
 
@@ -68,4 +81,34 @@ export async function updateOfferStatus(
   status: string,
 ) {
   return prisma.offer.updateMany({ where: { shop, id }, data: { status } });
+}
+
+export async function convertOfferToPO(shop: string, offerId: string) {
+  const { createPurchaseOrder } = await import("./purchase-order.server");
+
+  const offer = await prisma.offer.findFirst({
+    where: { shop, id: offerId },
+    include: { supplier: true, items: true },
+  });
+  if (!offer) throw new Error("Offer not found");
+  if (!offer.items.length) throw new Error("Offer has no items");
+
+  const po = await createPurchaseOrder(shop, {
+    supplierId: offer.supplierId,
+    offerId,
+    status: "open",
+    currency: offer.supplier.currency,
+    notes: offer.notes ?? undefined,
+    lineItems: offer.items.map((item) => ({
+      description: item.description ?? "",
+      supplierSku: item.supplierSku ?? undefined,
+      qtyOrdered:  item.qtyReserved,
+      unitCost:    item.unitCost,
+    })),
+  });
+
+  // Mark offer as completed now that a PO exists
+  await prisma.offer.update({ where: { id: offerId }, data: { status: "completed" } });
+
+  return po;
 }

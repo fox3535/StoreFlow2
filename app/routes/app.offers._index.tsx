@@ -1,5 +1,6 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
+import { useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -27,9 +28,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { offers };
 };
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  if (intent === "convertToPO") {
+    const offerId = formData.get("offerId") as string;
+    const { convertOfferToPO } = await import("../models/offer.server");
+    const po = await convertOfferToPO(session.shop, offerId);
+    return redirect(`/app/purchase-orders/${po.id}`);
+  }
+  return json({ ok: true });
+};
+
 export default function OffersIndex() {
   const { offers } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const submit = useSubmit();
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(offers);
@@ -102,8 +117,22 @@ export default function OffersIndex() {
             { title: "ETA" },
             { title: "End Date" },
           ]}
+          promotedBulkActions={[
+            {
+              content: "Convert to PO",
+              onAction: () => {
+                if (selectedResources.length !== 1) {
+                  alert("Select exactly one offer to convert.");
+                  return;
+                }
+                const fd = new FormData();
+                fd.append("intent", "convertToPO");
+                fd.append("offerId", selectedResources[0]);
+                submit(fd, { method: "post" });
+              },
+            },
+          ]}
           bulkActions={[
-            { content: "Convert to PO", onAction: () => {} },
             { content: "Mark completed", onAction: () => {} },
           ]}
         >

@@ -10,6 +10,7 @@ export type LineItemInput = {
 
 export type PurchaseOrderInput = {
   supplierId: string;
+  offerId?: string | null;
   status?: string;
   currency?: string;
   exchangeRate?: number;
@@ -58,6 +59,7 @@ export async function getPurchaseOrder(shop: string, id: string) {
     where: { shop, id },
     include: {
       supplier: true,
+      offer: { select: { id: true, status: true, totalEstimatedCost: true, createdAt: true } },
       lineItems: {
         include: { product: true },
         orderBy: { id: "asc" },
@@ -102,6 +104,7 @@ export async function createPurchaseOrder(
       shop,
       poNumber,
       supplierId: data.supplierId,
+      offerId: data.offerId ?? null,
       status: data.status ?? "draft",
       currency: data.currency ?? "USD",
       exchangeRate,
