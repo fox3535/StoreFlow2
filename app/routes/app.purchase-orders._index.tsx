@@ -44,7 +44,7 @@ export default function PurchaseOrdersIndex() {
         key={id}
         selected={selectedResources.includes(id)}
         position={index}
-        onClick={() => {}}
+        onClick={() => navigate(`/app/purchase-orders/${id}`)}
       >
         <IndexTable.Cell>
           <Text as="span" variant="bodyMd" fontWeight="semibold">
