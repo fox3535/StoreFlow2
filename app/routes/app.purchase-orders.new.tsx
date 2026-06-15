@@ -14,12 +14,12 @@ import {
   Button,
   Divider,
   Banner,
-  DataTable,
   Box,
   InlineGrid,
 } from "@shopify/polaris";
+import type { LineItem } from "../components/LineItemsTable";
+import { LineItemsTable } from "../components/LineItemsTable";
 import { TitleBar } from "@shopify/app-bridge-react";
-
 import { authenticate } from "../shopify.server";
 import { getSuppliers } from "../models/supplier.server";
 import { createPurchaseOrder } from "../models/purchase-order.server";
@@ -93,16 +93,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return redirect(`/app/purchase-orders`);
 };
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type LineItem = {
-  id: string;
-  description: string;
-  supplierSku: string;
-  qtyOrdered: string;
-  unitCost: string;
-};
+
 
 // ---------------------------------------------------------------------------
 // Component
@@ -198,59 +189,7 @@ export default function NewPurchaseOrder() {
 
   const errors = (actionData as any)?.errors ?? {};
 
-  const tableRows = lineItems.map((item) => [
-    <TextField
-      key={`desc-${item.id}`}
-      label=""
-      labelHidden
-      placeholder="Description / SKU"
-      value={item.description}
-      onChange={(v) => updateLineItem(item.id, "description", v)}
-      autoComplete="off"
-    />,
-    <TextField
-      key={`ssku-${item.id}`}
-      label=""
-      labelHidden
-      placeholder="Supplier SKU"
-      value={item.supplierSku}
-      onChange={(v) => updateLineItem(item.id, "supplierSku", v)}
-      autoComplete="off"
-    />,
-    <TextField
-      key={`qty-${item.id}`}
-      label=""
-      labelHidden
-      type="number"
-      value={item.qtyOrdered}
-      min="0"
-      onChange={(v) => updateLineItem(item.id, "qtyOrdered", v)}
-      autoComplete="off"
-    />,
-    <TextField
-      key={`cost-${item.id}`}
-      label=""
-      labelHidden
-      type="number"
-      value={item.unitCost}
-      min="0"
-      prefix="$"
-      onChange={(v) => updateLineItem(item.id, "unitCost", v)}
-      autoComplete="off"
-    />,
-    <Text key={`total-${item.id}`} as="span" variant="bodyMd">
-      ${((parseFloat(item.qtyOrdered) || 0) * (parseFloat(item.unitCost) || 0)).toFixed(2)}
-    </Text>,
-    <Button
-      key={`rm-${item.id}`}
-      variant="plain"
-      tone="critical"
-      onClick={() => removeLineItem(item.id)}
-      disabled={lineItems.length === 1}
-    >
-      Remove
-    </Button>,
-  ]);
+  // tableRows replaced by LineItemsTable component for stable focus management
 
   return (
     <Page>
@@ -316,11 +255,10 @@ export default function NewPurchaseOrder() {
                   {errors.lineItems && (
                     <Text as="p" variant="bodyMd" tone="critical">{errors.lineItems}</Text>
                   )}
-                  <DataTable
-                    columnContentTypes={["text", "text", "numeric", "numeric", "numeric", "text"]}
-                    headings={["Description / SKU", "Supplier SKU", "Qty", "Unit Cost", "Total", ""]}
-                    rows={tableRows}
-                    truncate
+                  <LineItemsTable
+                    items={lineItems}
+                    onChange={updateLineItem}
+                    onRemove={removeLineItem}
                   />
                 </BlockStack>
               </Card>
