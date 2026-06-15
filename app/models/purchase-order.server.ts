@@ -56,7 +56,13 @@ export async function getPurchaseOrders(shop: string) {
 export async function getPurchaseOrder(shop: string, id: string) {
   return prisma.purchaseOrder.findFirst({
     where: { shop, id },
-    include: { supplier: true, lineItems: true },
+    include: {
+      supplier: true,
+      lineItems: {
+        include: { product: true },
+        orderBy: { id: "asc" },
+      },
+    },
   });
 }
 
@@ -119,6 +125,117 @@ export async function createPurchaseOrder(
       },
     },
     include: { lineItems: true, supplier: true },
+  });
+}
+
+export type LineItemSave = {
+  id: string; // "new-xxx" = create, real id = update
+  description: string;
+  supplierSku: string | null;
+  qtyOrdered: number;
+  unitCost: number;
+};
+
+export async function updatePurchaseOrder(
+  shop: string,
+  id: string,
+  data: {
+    notes?: string | null;
+    exchangeRate?: number;
+    freightCost?: number;
+    tax?: number;
+    discounts?: number;
+    otherCosts?: number;
+    adjustment?: number;
+    lineItems?: LineItemSave[];
+    removedIds?: string[];
+  },
+) {
+  const po = await prisma.purchaseOrder.findFirst({ where: { shop, id } });
+  if (!po) return null;
+
+  const exchangeRate = data.exchangeRate ?? po.exchangeRate;
+  const freightCost  = data.freightCost  ?? po.freightCost;
+  const tax          = data.tax          ?? po.tax;
+  const discounts    = data.discounts    ?? po.discounts;
+  const otherCosts   = data.otherCosts   ?? po.otherCosts;
+  const adjustment   = data.adjustment   ?? po.adjustment;
+
+  return prisma.$transaction(async (tx) => {
+    // Delete removed rows
+    if (data.removedIds?.length) {
+      await tx.purchaseOrderLineItem.deleteMany({
+        where: { id: { in: data.removedIds }, poId: id },
+      });
+    }
+
+    // Update or create line items
+    if (data.lineItems) {
+      for (const item of data.lineItems) {
+        if (item.id.startsWith("new-")) {
+          await tx.purchaseOrderLineItem.create({
+            data: {
+              poId: id,
+              description: item.description || null,
+              supplierSku: item.supplierSku || null,
+              qtyOrdered: item.qtyOrdered,
+              unitCost: item.unitCost,
+              landedCostPerUnit: 0,
+              action: "restock",
+            },
+          });
+        } else {
+          await tx.purchaseOrderLineItem.update({
+            where: { id: item.id },
+            data: {
+              description: item.description || null,
+              supplierSku: item.supplierSku || null,
+              qtyOrdered: item.qtyOrdered,
+              unitCost: item.unitCost,
+            },
+          });
+        }
+      }
+    }
+
+    // Recalculate from all remaining line items
+    const allItems = await tx.purchaseOrderLineItem.findMany({ where: { poId: id } });
+    const subtotal  = allItems.reduce((s, i) => s + i.qtyOrdered * i.unitCost, 0);
+    const totalLandedCost = calcLandedCost(subtotal, freightCost, tax, discounts, otherCosts, exchangeRate, adjustment);
+    const totalQty  = allItems.reduce((s, i) => s + i.qtyOrdered, 0);
+    const landedPerUnit = totalQty > 0 ? totalLandedCost / totalQty : 0;
+
+    // Stamp landed cost per unit on every row
+    await tx.purchaseOrderLineItem.updateMany({
+      where: { poId: id },
+      data: { landedCostPerUnit: landedPerUnit },
+    });
+
+    return tx.purchaseOrder.update({
+      where: { id },
+      data: {
+        notes: data.notes !== undefined ? data.notes : po.notes,
+        exchangeRate,
+        freightCost,
+        tax,
+        discounts,
+        otherCosts,
+        adjustment,
+        subtotal,
+        totalLandedCost,
+      },
+    });
+  });
+}
+
+export async function addLineItemToPO(
+  shop: string,
+  poId: string,
+) {
+  const po = await prisma.purchaseOrder.findFirst({ where: { shop, id: poId } });
+  if (!po) return null;
+  return prisma.purchaseOrderLineItem.create({
+    data: { poId, qtyOrdered: 1, unitCost: 0, landedCostPerUnit: 0, action: "restock" },
   });
 }
 
