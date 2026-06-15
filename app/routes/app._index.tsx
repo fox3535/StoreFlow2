@@ -1,11 +1,16 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
+import { useNavigate } from "@remix-run/react";
 import {
   Page,
   Layout,
-  Text,
   Card,
+  Text,
   BlockStack,
   InlineStack,
+  InlineGrid,
+  Box,
+  Button,
+  Divider,
   Badge,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
@@ -17,99 +22,166 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return null;
 };
 
+function StatCard({
+  label,
+  value,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "success" | "warning" | "critical" | "info";
+  onClick?: () => void;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <Text as="p" variant="bodySm" tone="subdued">
+          {label}
+        </Text>
+        <Text as="p" variant="heading2xl" fontWeight="bold">
+          {String(value)}
+        </Text>
+        {tone && (
+          <Badge tone={tone}>
+            {tone === "success"
+              ? "On track"
+              : tone === "warning"
+                ? "Needs attention"
+                : tone === "critical"
+                  ? "Action required"
+                  : "Active"}
+          </Badge>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <Page>
       <TitleBar title="ShelfFlow" />
-      <BlockStack gap="500">
+      <BlockStack gap="600">
+        <InlineGrid columns={4} gap="400">
+          <StatCard label="Open Purchase Orders" value={0} tone="info" />
+          <StatCard label="Open Offers / Reserves" value={0} tone="info" />
+          <StatCard label="Pending Receipts" value={0} tone="warning" />
+          <StatCard label="Suppliers" value={0} />
+        </InlineGrid>
+
         <Layout>
           <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Purchase Orders
-                  </Text>
-                  <Badge tone="info">Coming soon</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Track open, in-transit, and received purchase orders.
-                </Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Offers / Reserves
-                  </Text>
-                  <Badge tone="info">Coming soon</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Manage outstanding offers and reserved inventory before POs
-                  are created.
-                </Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Receiving
-                  </Text>
-                  <Badge tone="info">Coming soon</Badge>
-                </InlineStack>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Receive, reject, or backorder incoming stock and update
-                  average costs.
-                </Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="500">
+            <BlockStack gap="400">
               <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    ShelfFlow
-                  </Text>
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    Purchase orders, supplier management, inventory receiving,
-                    landed cost tracking, and manual Shopify sync — all in one
-                    place.
-                  </Text>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Recent Purchase Orders
+                    </Text>
+                    <Button
+                      variant="plain"
+                      onClick={() => navigate("/app/purchase-orders")}
+                    >
+                      View all
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <Box paddingBlock="600">
+                    <BlockStack gap="200" align="center">
+                      <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                        No purchase orders yet.
+                      </Text>
+                      <Button
+                        variant="primary"
+                        onClick={() => navigate("/app/purchase-orders")}
+                      >
+                        Create first PO
+                      </Button>
+                    </BlockStack>
+                  </Box>
                 </BlockStack>
               </Card>
 
               <Card>
-                <BlockStack gap="200">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Pending Receipts
+                    </Text>
+                    <Button
+                      variant="plain"
+                      onClick={() => navigate("/app/receiving")}
+                    >
+                      View all
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <Box paddingBlock="600">
+                    <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                      No items pending receipt.
+                    </Text>
+                  </Box>
+                </BlockStack>
+              </Card>
+            </BlockStack>
+          </Layout.Section>
+
+          <Layout.Section variant="oneThird">
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Stack
+                    Quick Actions
                   </Text>
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodyMd">
-                      React Router (Remix)
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      Shopify Polaris
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      Shopify App Bridge
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      Prisma + SQLite
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      TypeScript
-                    </Text>
+                  <Divider />
+                  <BlockStack gap="200">
+                    <Button
+                      fullWidth
+                      textAlign="left"
+                      onClick={() => navigate("/app/purchase-orders")}
+                    >
+                      Create Purchase Order
+                    </Button>
+                    <Button
+                      fullWidth
+                      textAlign="left"
+                      onClick={() => navigate("/app/offers")}
+                    >
+                      Create Offer / Reserve
+                    </Button>
+                    <Button
+                      fullWidth
+                      textAlign="left"
+                      onClick={() => navigate("/app/receiving")}
+                    >
+                      Receive Stock
+                    </Button>
+                    <Button
+                      fullWidth
+                      textAlign="left"
+                      onClick={() => navigate("/app/imports")}
+                    >
+                      Import CSV
+                    </Button>
                   </BlockStack>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Shopify Sync
+                  </Text>
+                  <Divider />
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    No pending inventory or price updates.
+                  </Text>
+                  <Button fullWidth disabled>
+                    Review &amp; Sync
+                  </Button>
                 </BlockStack>
               </Card>
             </BlockStack>
