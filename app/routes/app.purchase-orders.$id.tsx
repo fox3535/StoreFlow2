@@ -29,6 +29,8 @@ import {
 } from "../models/purchase-order.server";
 import type { EditItem, ColKey } from "../components/POSpreadsheet";
 import { ALL_COLS, DEFAULT_VISIBLE, POSpreadsheet } from "../components/POSpreadsheet";
+import type { PickedProduct } from "../components/ProductPickerButton";
+import { ProductPickerButton } from "../components/ProductPickerButton";
 
 // ---------------------------------------------------------------------------
 // Status config
@@ -204,6 +206,29 @@ export default function PurchaseOrderDetail() {
     setDirty(true);
   }
 
+  const handleProductPick = useCallback((picked: PickedProduct) => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id:               `new-${Date.now()}`,
+        description:      picked.title,
+        supplierSku:      picked.supplierSku ?? "",
+        qtyOrdered:       "1",
+        unitCost:         picked.suggestedUnitCost != null ? String(picked.suggestedUnitCost) : "0",
+        qtyReceived:      0,
+        qtyRejected:      0,
+        product:          null,
+        pickedImageUrl:   picked.imageUrl,
+        pickedTitle:      picked.title,
+        pickedSku:        picked.sku,
+        pickedBarcode:    picked.barcode,
+        pickedRetailPrice: picked.retailPrice,
+        pendingProductId: picked.productId,
+      },
+    ]);
+    setDirty(true);
+  }, []);
+
   function handleSave() {
     const fd = new FormData();
     fd.append("intent",        "save");
@@ -215,8 +240,12 @@ export default function PurchaseOrderDetail() {
     fd.append("otherCosts",    otherCosts);
     fd.append("adjustment",    adjustment);
     fd.append("lineItemsJson",  JSON.stringify(items.map((i) => ({
-      id: i.id, description: i.description, supplierSku: i.supplierSku || null,
-      qtyOrdered: toNum(i.qtyOrdered), unitCost: toNum(i.unitCost),
+      id:          i.id,
+      description: i.description,
+      supplierSku: i.supplierSku || null,
+      qtyOrdered:  toNum(i.qtyOrdered),
+      unitCost:    toNum(i.unitCost),
+      productId:   i.product?.id ?? i.pendingProductId ?? null,
     }))));
     fd.append("removedIdsJson", JSON.stringify(removedIds));
     fetcher.submit(fd, { method: "post" });
@@ -379,7 +408,14 @@ export default function PurchaseOrderDetail() {
                     </Popover>
 
                     {canEdit && (
-                      <Button size="slim" onClick={handleAddRow}>Add Row</Button>
+                      <>
+                        <ProductPickerButton
+                          supplierId={po.supplierId}
+                          onPick={handleProductPick}
+                          label="Add Product"
+                        />
+                        <Button size="slim" onClick={handleAddRow}>Add Row</Button>
+                      </>
                     )}
                   </InlineStack>
                 </InlineStack>

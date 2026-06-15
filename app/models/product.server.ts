@@ -13,9 +13,10 @@ export async function upsertProduct(
   data: {
     shopifyProductId: string;
     shopifyVariantId: string;
-    sku?: string;
-    barcode?: string;
+    sku?: string | null;
+    barcode?: string | null;
     title: string;
+    imageUrl?: string | null;
     currentPrice?: number;
     currentQuantity?: number;
   },
@@ -29,6 +30,7 @@ export async function upsertProduct(
       sku: data.sku ?? null,
       barcode: data.barcode ?? null,
       title: data.title,
+      imageUrl: data.imageUrl ?? null,
       currentPrice: data.currentPrice ?? 0,
       currentQuantity: data.currentQuantity ?? 0,
     },
@@ -36,9 +38,16 @@ export async function upsertProduct(
       sku: data.sku ?? null,
       barcode: data.barcode ?? null,
       title: data.title,
+      imageUrl: data.imageUrl ?? null,
       currentPrice: data.currentPrice ?? 0,
       currentQuantity: data.currentQuantity ?? 0,
     },
+  });
+}
+
+export async function lookupSupplierSku(shop: string, productId: string, supplierId: string) {
+  return prisma.supplierSkuMapping.findFirst({
+    where: { shop, productId, supplierId },
   });
 }
 

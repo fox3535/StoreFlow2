@@ -1,4 +1,4 @@
-import { TextField, Text, Button, InlineStack, Box } from "@shopify/polaris";
+import { TextField, Text, Button, InlineStack } from "@shopify/polaris";
 
 export type LineItem = {
   id: string;
@@ -6,11 +6,14 @@ export type LineItem = {
   supplierSku: string;
   qtyOrdered: string;
   unitCost: string;
+  imageUrl?: string | null;
+  pickedTitle?: string | null;
+  pendingProductId?: string | null;
 };
 
 type Props = {
   items: LineItem[];
-  onChange: (id: string, field: keyof Omit<LineItem, "id">, value: string) => void;
+  onChange: (id: string, field: keyof Pick<LineItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) => void;
   onRemove: (id: string) => void;
 };
 
@@ -28,26 +31,63 @@ function LineItemRow({
   isOnly: boolean;
 }) {
   const total = (parseFloat(item.qtyOrdered) || 0) * (parseFloat(item.unitCost) || 0);
+  const hasImage = Boolean(item.imageUrl);
+  const displayTitle = item.pickedTitle ?? null;
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "2fr 1.2fr 80px 110px 80px 70px",
+        gridTemplateColumns: "40px 2fr 1.2fr 80px 110px 80px 70px",
         gap: "8px",
         alignItems: "center",
         padding: "8px 0",
         borderBottom: "1px solid #e1e3e5",
       }}
     >
-      <TextField
-        label=""
-        labelHidden
-        placeholder="Description / SKU"
-        value={item.description}
-        onChange={(v) => onChange(item.id, "description", v)}
-        autoComplete="off"
-      />
+      {/* Thumbnail */}
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 4,
+          background: "#f6f6f7",
+          border: hasImage ? "none" : "1px dashed #d1d5db",
+          overflow: "hidden",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {hasImage ? (
+          <img
+            src={item.imageUrl!}
+            alt={displayTitle ?? item.description}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <span style={{ fontSize: 8, color: "#c9cccf" }}>IMG</span>
+        )}
+      </div>
+
+      {/* Description — with optional product title subtitle */}
+      <div>
+        <TextField
+          label=""
+          labelHidden
+          placeholder="Description / SKU"
+          value={item.description}
+          onChange={(v) => onChange(item.id, "description", v)}
+          autoComplete="off"
+        />
+        {displayTitle && displayTitle !== item.description && (
+          <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {displayTitle}
+          </div>
+        )}
+      </div>
+
       <TextField
         label=""
         labelHidden
@@ -92,20 +132,20 @@ function LineItemRow({
 
 export function LineItemsTable({ items, onChange, onRemove }: Props) {
   return (
-    <Box>
+    <div>
       {/* Header */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "2fr 1.2fr 80px 110px 80px 70px",
+          gridTemplateColumns: "40px 2fr 1.2fr 80px 110px 80px 70px",
           gap: "8px",
           padding: "0 0 8px 0",
           borderBottom: "2px solid #e1e3e5",
         }}
       >
-        {["Description / SKU", "Supplier SKU", "Qty", "Unit Cost", "Total", ""].map(
-          (h) => (
-            <Text key={h} as="span" variant="bodySm" fontWeight="semibold" tone="subdued">
+        {["", "Description / SKU", "Supplier SKU", "Qty", "Unit Cost", "Total", ""].map(
+          (h, i) => (
+            <Text key={i} as="span" variant="bodySm" fontWeight="semibold" tone="subdued">
               {h}
             </Text>
           ),
@@ -122,6 +162,6 @@ export function LineItemsTable({ items, onChange, onRemove }: Props) {
           isOnly={items.length === 1}
         />
       ))}
-    </Box>
+    </div>
   );
 }

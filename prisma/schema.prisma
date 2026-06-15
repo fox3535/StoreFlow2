@@ -51,6 +51,7 @@ model Product {
   sku              String?
   barcode          String?
   title            String
+  imageUrl         String?
   currentPrice     Float    @default(0)
   currentQuantity  Int      @default(0)
   avgCost          Float    @default(0)

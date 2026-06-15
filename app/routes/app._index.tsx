@@ -125,16 +125,34 @@ export default function Dashboard() {
                       </BlockStack>
                     </Box>
                   ) : (
-                    <BlockStack gap="200">
+                    <BlockStack gap="100">
                       {recentPOs.map((po) => (
-                        <InlineStack key={po.id} align="space-between" blockAlign="center">
+                        <div
+                          key={po.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(`/app/purchase-orders/${po.id}`)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/app/purchase-orders/${po.id}`); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            transition: "background 0.1s",
+                            border: "1px solid transparent",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#f3f4f6"; (e.currentTarget as HTMLDivElement).style.borderColor = "#e1e3e5"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.borderColor = "transparent"; }}
+                        >
                           <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
                           <Text as="span" variant="bodyMd" tone="subdued">{po.supplier.name}</Text>
                           <Text as="span" variant="bodyMd">${po.totalLandedCost.toFixed(2)}</Text>
                           <Badge tone={po.status === "received" ? "success" : po.status === "open" ? "info" : undefined}>
                             {po.status}
                           </Badge>
-                        </InlineStack>
+                        </div>
                       ))}
                     </BlockStack>
                   )}
@@ -162,21 +180,34 @@ export default function Dashboard() {
                       </Text>
                     </Box>
                   ) : (
-                    <BlockStack gap="200">
+                    <BlockStack gap="100">
                       {pendingReceiptPOs.map((po) => (
-                        <InlineStack key={po.id} align="space-between" blockAlign="center">
+                        <div
+                          key={po.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(`/app/purchase-orders/${po.id}`)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/app/purchase-orders/${po.id}`); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            transition: "background 0.1s",
+                            border: "1px solid transparent",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#f3f4f6"; (e.currentTarget as HTMLDivElement).style.borderColor = "#e1e3e5"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.borderColor = "transparent"; }}
+                        >
                           <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
                           <Text as="span" variant="bodyMd" tone="subdued">{po.supplier.name}</Text>
                           <Badge tone={po.status === "partially_received" ? "warning" : "info"}>
                             {po.status === "partially_received" ? "Partial" : "In Transit"}
                           </Badge>
-                          <Button
-                            variant="plain"
-                            onClick={() => navigate(`/app/receiving`)}
-                          >
-                            Receive
-                          </Button>
-                        </InlineStack>
+                          <Text as="span" variant="bodySm" tone="subdued">View →</Text>
+                        </div>
                       ))}
                     </BlockStack>
                   )}

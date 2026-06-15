@@ -24,6 +24,8 @@ import { authenticate } from "../shopify.server";
 import { getSuppliers } from "../models/supplier.server";
 import { createPurchaseOrder } from "../models/purchase-order.server";
 import { getSettings } from "../models/settings.server";
+import type { PickedProduct } from "../components/ProductPickerButton";
+import { ProductPickerButton } from "../components/ProductPickerButton";
 
 // ---------------------------------------------------------------------------
 // Loader
@@ -138,6 +140,22 @@ export default function NewPurchaseOrder() {
     ]);
   }
 
+  function handleProductPick(picked: PickedProduct) {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        id:               crypto.randomUUID(),
+        description:      picked.title,
+        supplierSku:      picked.supplierSku ?? "",
+        qtyOrdered:       "1",
+        unitCost:         picked.suggestedUnitCost != null ? String(picked.suggestedUnitCost) : "0",
+        imageUrl:         picked.imageUrl,
+        pickedTitle:      picked.title,
+        pendingProductId: picked.productId,
+      },
+    ]);
+  }
+
   function removeLineItem(id: string) {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
   }
@@ -167,8 +185,9 @@ export default function NewPurchaseOrder() {
     const serializedItems = lineItems.map((item) => ({
       description: item.description,
       supplierSku: item.supplierSku,
-      qtyOrdered: parseInt(item.qtyOrdered) || 0,
-      unitCost: parseFloat(item.unitCost) || 0,
+      qtyOrdered:  parseInt(item.qtyOrdered) || 0,
+      unitCost:    parseFloat(item.unitCost) || 0,
+      productId:   item.pendingProductId ?? null,
     }));
 
     const formData = new FormData();
@@ -249,7 +268,14 @@ export default function NewPurchaseOrder() {
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">Line Items</Text>
-                    <Button onClick={addLineItem}>Add Line Item</Button>
+                    <InlineStack gap="200">
+                      <ProductPickerButton
+                        supplierId={supplierId}
+                        onPick={handleProductPick}
+                        label="Add Product"
+                      />
+                      <Button size="slim" onClick={addLineItem}>Add Row</Button>
+                    </InlineStack>
                   </InlineStack>
                   <Divider />
                   {errors.lineItems && (

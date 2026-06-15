@@ -47,9 +47,11 @@ export const DEFAULT_VISIBLE = new Set<ColKey>(
 // ---------------------------------------------------------------------------
 
 export type POLineItemProduct = {
+  id?: string;
   sku: string | null;
   barcode: string | null;
   title: string;
+  imageUrl: string | null;
   currentPrice: number;
   currentQuantity: number;
   avgCost: number;
@@ -64,6 +66,13 @@ export type EditItem = {
   qtyReceived: number;
   qtyRejected: number;
   product: POLineItemProduct | null;
+  // Set when a product is picked from the Shopify ResourcePicker before save
+  pickedImageUrl?: string | null;
+  pickedTitle?: string | null;
+  pickedSku?: string | null;
+  pickedBarcode?: string | null;
+  pickedRetailPrice?: string | null;
+  pendingProductId?: string | null;
 };
 
 export type POSpreadsheetProps = {
@@ -188,7 +197,11 @@ function POLineItemRow({
   const cost = parseFloat(item.unitCost)   || 0;
 
   const lineTotal    = qty * cost;
-  const retail       = p?.currentPrice    ?? 0;
+  const imageUrl     = p?.imageUrl ?? item.pickedImageUrl ?? null;
+  const displayTitle = p?.title    ?? item.pickedTitle    ?? null;
+  const displaySku   = p?.sku      ?? item.pickedSku      ?? null;
+  const displayBarcode = p?.barcode ?? item.pickedBarcode ?? null;
+  const retail       = p?.currentPrice ?? (parseFloat(item.pickedRetailPrice ?? "0") || 0);
   const available    = p?.currentQuantity ?? 0;
   const onOrder      = Math.max(0, qty - item.qtyReceived);
   const lpu          = landedPerUnit;
@@ -220,10 +233,11 @@ function POLineItemRow({
     <tr style={{ background: "white" }}>
       {/* Image */}
       {cell("image",
-        <div style={{ width: 34, height: 34, background: "#f6f6f7", borderRadius: 4, border: p ? "none" : "1px dashed #d1d5db", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-          {p
-            ? <span style={{ fontSize: 9, color: "#6d7175", textAlign: "center", padding: 2 }}>IMG</span>
-            : null}
+        <div style={{ width: 34, height: 34, background: "#f6f6f7", borderRadius: 4, border: imageUrl ? "none" : "1px dashed #d1d5db", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+          {imageUrl
+            ? <img src={imageUrl} alt={displayTitle ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 3 }} />
+            : <span style={{ fontSize: 9, color: "#c9cccf", lineHeight: 1 }}>IMG</span>
+          }
         </div>
       )}
 
@@ -233,12 +247,12 @@ function POLineItemRow({
           <TI
             value={item.description}
             onChange={(v) => onChange(item.id, "description", v)}
-            placeholder={p?.title ?? "Product name / SKU…"}
+            placeholder={displayTitle ?? "Product name / SKU…"}
             disabled={disabled}
           />
-          {p?.title && (
+          {displayTitle && displayTitle !== item.description && (
             <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 195 }}>
-              {p.title}
+              {displayTitle}
             </div>
           )}
         </div>
@@ -255,10 +269,10 @@ function POLineItemRow({
       )}
 
       {/* SKU */}
-      {cell("sku", <RO value={p?.sku ?? "—"} tone={p?.sku ? undefined : "subdued"} />)}
+      {cell("sku", <RO value={displaySku ?? "—"} tone={displaySku ? undefined : "subdued"} />)}
 
       {/* Barcode */}
-      {cell("barcode", <RO value={p?.barcode ?? "—"} tone={p?.barcode ? undefined : "subdued"} />)}
+      {cell("barcode", <RO value={displayBarcode ?? "—"} tone={displayBarcode ? undefined : "subdued"} />)}
 
       {/* Retail */}
       {cell("retail",
@@ -301,6 +315,7 @@ function POLineItemRow({
           tone={!p ? "subdued" : available <= 0 ? "critical" : undefined}
         />
       )}
+
 
       {/* On Order */}
       {cell("onOrder", <RO value={String(onOrder)} align="right" />)}
@@ -403,7 +418,7 @@ export function POSpreadsheet({
                 colSpan={activeCols.length + 1}
                 style={{ padding: "40px 24px", textAlign: "center", color: "#6d7175", fontSize: 14 }}
               >
-                No line items yet. Click <strong>Add Row</strong> to begin.
+                No line items yet. Click <strong>Add Product</strong> to search Shopify products, or <strong>Add Row</strong> for a blank row.
               </td>
             </tr>
           ) : (

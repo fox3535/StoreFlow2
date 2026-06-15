@@ -6,6 +6,7 @@ export type LineItemInput = {
   qtyOrdered: number;
   unitCost: number;
   action?: string;
+  productId?: string | null;
 };
 
 export type PurchaseOrderInput = {
@@ -124,6 +125,7 @@ export async function createPurchaseOrder(
           unitCost: item.unitCost,
           landedCostPerUnit: landedPerUnit,
           action: item.action ?? "restock",
+          productId: item.productId ?? null,
         })),
       },
     },
@@ -137,6 +139,7 @@ export type LineItemSave = {
   supplierSku: string | null;
   qtyOrdered: number;
   unitCost: number;
+  productId?: string | null;
 };
 
 export async function updatePurchaseOrder(
@@ -185,6 +188,7 @@ export async function updatePurchaseOrder(
               unitCost: item.unitCost,
               landedCostPerUnit: 0,
               action: "restock",
+              productId: item.productId ?? null,
             },
           });
         } else {

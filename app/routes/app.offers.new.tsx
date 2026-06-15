@@ -18,12 +18,13 @@ import {
   InlineGrid,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-
 import type { LineItem } from "../components/LineItemsTable";
 import { LineItemsTable } from "../components/LineItemsTable";
 import { authenticate } from "../shopify.server";
 import { getSuppliers } from "../models/supplier.server";
 import { createOffer } from "../models/offer.server";
+import type { PickedProduct } from "../components/ProductPickerButton";
+import { ProductPickerButton } from "../components/ProductPickerButton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -95,6 +96,22 @@ export default function NewOffer() {
     setItems((prev) => [
       ...prev,
       { id: crypto.randomUUID(), description: "", supplierSku: "", qtyOrdered: "1", unitCost: "0" },
+    ]);
+  }
+
+  function handleProductPick(picked: PickedProduct) {
+    setItems((prev) => [
+      ...prev,
+      {
+        id:               crypto.randomUUID(),
+        description:      picked.title,
+        supplierSku:      picked.supplierSku ?? "",
+        qtyOrdered:       "1",
+        unitCost:         picked.suggestedUnitCost != null ? String(picked.suggestedUnitCost) : "0",
+        imageUrl:         picked.imageUrl,
+        pickedTitle:      picked.title,
+        pendingProductId: picked.productId,
+      },
     ]);
   }
 
@@ -189,7 +206,14 @@ export default function NewOffer() {
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">Items</Text>
-                    <Button onClick={addItem}>Add Item</Button>
+                    <InlineStack gap="200">
+                      <ProductPickerButton
+                        supplierId={supplierId}
+                        onPick={handleProductPick}
+                        label="Add Product"
+                      />
+                      <Button size="slim" onClick={addItem}>Add Row</Button>
+                    </InlineStack>
                   </InlineStack>
                   <Divider />
                   {errors.items && (
