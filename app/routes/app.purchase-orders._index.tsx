@@ -23,6 +23,7 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getPurchaseOrders, updatePurchaseOrderStatus } from "../models/purchase-order.server";
+import { DashKpiGrid, DashKpiStyles, DashStatCard } from "../components/DashStatCard";
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -118,30 +119,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-function StatCard({
-  label, value, sub, tone,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  tone?: "success" | "warning" | "critical" | "info";
-}) {
-  return (
-    <Card>
-      <BlockStack gap="100">
-        <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
-        <Text as="p" variant="headingXl" fontWeight="bold">{String(value)}</Text>
-        {sub && <Text as="p" variant="bodySm" tone="subdued">{sub}</Text>}
-        {tone && (
-          <Badge tone={tone}>
-            {tone === "warning" ? "Needs attention" : tone === "critical" ? "Action required" : tone === "success" ? "On track" : "Active"}
-          </Badge>
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
-
 function ProgressBar({ received, ordered }: { received: number; ordered: number }) {
   if (ordered === 0) return <Text as="span" variant="bodySm" tone="subdued">—</Text>;
   const pct = Math.min(100, Math.round((received / ordered) * 100));
@@ -337,6 +314,7 @@ export default function PurchaseOrdersIndex() {
         </button>
       </TitleBar>
 
+      <DashKpiStyles />
       <BlockStack gap="500">
         {/* ── Summary cards ─────────────────────────────────────────────── */}
         {(() => {
@@ -345,12 +323,12 @@ export default function PurchaseOrdersIndex() {
           const unitsOnOrder = activePOs.reduce((s, p) => s + Math.max(0, p.totalOrdered - p.totalReceived), 0);
           const avgValue    = enriched.length > 0 ? totalValue / enriched.length : 0;
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              <StatCard label="Total POs" value={enriched.length} sub={`${enriched.filter(p => p.status === "draft").length} draft`} />
-              <StatCard label="Active Value on Order" value={`$${activeValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="Open + In Transit" tone={activeValue > 0 ? "info" : undefined} />
-              <StatCard label="Units On Order" value={unitsOnOrder.toLocaleString()} sub="Outstanding qty" tone={unitsOnOrder > 0 ? "info" : undefined} />
-              <StatCard label="Avg PO Landed Cost" value={`$${avgValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="Per order" />
-            </div>
+            <DashKpiGrid columns={4}>
+              <DashStatCard label="Total POs" value={enriched.length} sub={`${enriched.filter(p => p.status === "draft").length} draft`} />
+              <DashStatCard label="Active Value on Order" value={`$${activeValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="Open + In Transit" tone={activeValue > 0 ? "info" : undefined} />
+              <DashStatCard label="Units On Order" value={unitsOnOrder.toLocaleString()} sub="Outstanding qty" tone={unitsOnOrder > 0 ? "info" : undefined} />
+              <DashStatCard label="Avg PO Landed Cost" value={`$${avgValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="Per order" />
+            </DashKpiGrid>
           );
         })()}
 

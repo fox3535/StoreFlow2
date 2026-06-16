@@ -18,6 +18,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { getSuppliers } from "../models/supplier.server";
+import { DashKpiGrid, DashKpiStyles, DashStatCard } from "../components/DashStatCard";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -72,28 +73,13 @@ export default function SuppliersIndex() {
         </button>
       </TitleBar>
 
+      <DashKpiStyles />
       <BlockStack gap="500">
-        {/* Summary row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">Total Suppliers</Text>
-              <Text as="p" variant="headingXl" fontWeight="bold">{suppliers.length}</Text>
-            </BlockStack>
-          </Card>
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">Total Purchase Orders</Text>
-              <Text as="p" variant="headingXl" fontWeight="bold">{totalPOs}</Text>
-            </BlockStack>
-          </Card>
-          <Card>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">SKU Mappings</Text>
-              <Text as="p" variant="headingXl" fontWeight="bold">{totalMappings}</Text>
-            </BlockStack>
-          </Card>
-        </div>
+        <DashKpiGrid columns={3}>
+          <DashStatCard label="Total Suppliers" value={suppliers.length} />
+          <DashStatCard label="Total Purchase Orders" value={totalPOs} />
+          <DashStatCard label="SKU Mappings" value={totalMappings} />
+        </DashKpiGrid>
 
         {/* Table card */}
         <Card padding="0">
