@@ -98,12 +98,17 @@ function StatCard({
 
   return (
     <div
-      className={clickable ? "dash-kpi dash-kpi--clickable" : "dash-kpi"}
+      className={[
+        "dash-kpi",
+        clickable && "dash-kpi--clickable",
+        tone && `dash-kpi--tone-${tone}`,
+      ].filter(Boolean).join(" ")}
       onClick={onClick}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") onClick!(); } : undefined}
     >
+      {clickable && <span className="dash-kpi__hint" aria-hidden="true">View →</span>}
       <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
       <Text as="p" variant="headingXl" fontWeight="bold">{String(value)}</Text>
       <div className="dash-kpi__footer">
@@ -146,14 +151,15 @@ export default function Dashboard() {
     background: "#fafbfb",
   };
 
-  const recentPoCols: { label: string; align: "left" | "center" | "right"; width: string }[] = [
-    { label: "PO #",        align: "left",   width: "17%" },
-    { label: "Supplier",    align: "left",   width: "18%" },
-    { label: "Items",       align: "center", width: "8%"  },
-    { label: "Status",      align: "left",   width: "14%" },
-    { label: "Date",        align: "left",   width: "13%" },
-    { label: "Landed Cost", align: "right",  width: "30%" },
+  const recentPoCols: { key: string; label: string; align: "left" | "center" | "right" }[] = [
+    { key: "po",         label: "PO #",        align: "left"   },
+    { key: "supplier",   label: "Supplier",    align: "left"   },
+    { key: "items",      label: "Items",       align: "center" },
+    { key: "status",     label: "Status",      align: "left"   },
+    { key: "date",       label: "Date",        align: "left"   },
+    { key: "landedCost", label: "Landed Cost", align: "right"  },
   ];
+  const recentPoColWidth = `${100 / recentPoCols.length}%`;
 
   const pendingCols: { label: string; align: "left" | "center" | "right" }[] = [
     { label: "PO #",         align: "left"   },
@@ -174,25 +180,68 @@ export default function Dashboard() {
           align-items: stretch;
         }
         .dash-kpi {
+          position: relative;
           height: 100%;
           min-height: 136px;
           padding: 16px 20px;
           background: #fff;
           border-radius: 12px;
-          border: 1px solid #e1e3e5;
+          border: 2px solid #e1e3e5;
           box-shadow: 0 1px 0 rgba(0,0,0,0.05);
           display: flex;
           flex-direction: column;
           gap: 8px;
-          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .dash-kpi--tone-info {
+          background: linear-gradient(180deg, #f4f8ff 0%, #fff 100%);
+          border-color: #95b8f0;
+        }
+        .dash-kpi--tone-attention {
+          background: linear-gradient(180deg, #fff8e6 0%, #fff 100%);
+          border-color: #ffc453;
+        }
+        .dash-kpi--tone-warning {
+          background: linear-gradient(180deg, #fff5ea 0%, #fff 100%);
+          border-color: #ffb84d;
+        }
+        .dash-kpi--tone-success {
+          background: linear-gradient(180deg, #eefbf5 0%, #fff 100%);
+          border-color: #86d4b3;
+        }
+        .dash-kpi--tone-critical {
+          background: linear-gradient(180deg, #fff4f4 0%, #fff 100%);
+          border-color: #f4a4a4;
         }
         .dash-kpi--clickable { cursor: pointer; }
-        .dash-kpi--clickable:hover {
-          transform: translateY(-2px);
-          border-color: rgba(0, 91, 211, 0.4);
-          box-shadow: 0 6px 18px rgba(26, 26, 26, 0.1);
+        .dash-kpi--clickable:hover,
+        .dash-kpi--clickable:focus-visible {
+          transform: translateY(-4px);
+          border-color: #005bd3;
+          background: #eef4ff;
+          box-shadow: 0 10px 28px rgba(0, 91, 211, 0.22), 0 0 0 1px rgba(0, 91, 211, 0.12);
         }
-        .dash-kpi--clickable:active { transform: translateY(0); }
+        .dash-kpi--clickable:focus-visible {
+          outline: 2px solid #005bd3;
+          outline-offset: 2px;
+        }
+        .dash-kpi--clickable:active { transform: translateY(-1px); }
+        .dash-kpi__hint {
+          position: absolute;
+          top: 14px;
+          right: 16px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #005bd3;
+          opacity: 0;
+          transform: translateX(-4px);
+          transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        .dash-kpi--clickable:hover .dash-kpi__hint,
+        .dash-kpi--clickable:focus-visible .dash-kpi__hint {
+          opacity: 1;
+          transform: translateX(0);
+        }
         .dash-kpi__footer {
           margin-top: auto;
           display: flex;
@@ -283,7 +332,7 @@ export default function Dashboard() {
                   <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                     <colgroup>
                       {recentPoCols.map((col) => (
-                        <col key={col.label} style={{ width: col.width }} />
+                        <col key={col.label} style={{ width: recentPoColWidth }} />
                       ))}
                     </colgroup>
                     <thead>
@@ -298,20 +347,14 @@ export default function Dashboard() {
                     <tbody>
                       {recentPOs.map((po) => {
                         const meta = STATUS_META[po.status] ?? { tone: undefined, label: po.status };
-                        const cells: React.ReactNode[] = [
-                          <td key="po" style={{ padding: "10px 16px", fontWeight: 600, whiteSpace: "nowrap", textAlign: "left" }}>{po.poNumber}</td>,
-                          <td key="sup" style={{ padding: "10px 16px", whiteSpace: "nowrap", textAlign: "left" }}>{po.supplier.name}</td>,
-                          <td key="items" style={{ padding: "10px 16px", textAlign: "center" }}>{po._count.lineItems}</td>,
-                          <td key="status" style={{ padding: "10px 16px", textAlign: "left" }}>
-                            <Badge tone={meta.tone}>{meta.label}</Badge>
-                          </td>,
-                          <td key="date" style={{ padding: "10px 16px", color: "#6d7175", whiteSpace: "nowrap", textAlign: "left" }}>
-                            {fmtDate(po.createdAt)}
-                          </td>,
-                          <td key="cost" style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
-                            ${po.totalLandedCost.toFixed(2)}
-                          </td>,
-                        ];
+                        const cellValue: Record<string, React.ReactNode> = {
+                          po: po.poNumber,
+                          supplier: po.supplier.name,
+                          items: po._count.lineItems,
+                          status: <Badge tone={meta.tone}>{meta.label}</Badge>,
+                          date: fmtDate(po.createdAt),
+                          landedCost: `$${po.totalLandedCost.toFixed(2)}`,
+                        };
                         return (
                           <tr
                             key={po.id}
@@ -320,7 +363,20 @@ export default function Dashboard() {
                             onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = "#f6f6f7"; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = ""; }}
                           >
-                            {cells}
+                            {recentPoCols.map((col) => (
+                              <td
+                                key={col.key}
+                                style={{
+                                  padding: "10px 16px",
+                                  textAlign: col.align,
+                                  fontWeight: col.key === "po" || col.key === "landedCost" ? 600 : undefined,
+                                  color: col.key === "date" ? "#6d7175" : undefined,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {cellValue[col.key]}
+                              </td>
+                            ))}
                           </tr>
                         );
                       })}

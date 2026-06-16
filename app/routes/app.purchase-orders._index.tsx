@@ -53,17 +53,17 @@ type ColDef = {
 };
 
 const ALL_PO_COLS: ColDef[] = [
-  { key: "poNumber",      label: "PO #",        defaultVisible: true,  align: "left",   width: 148 },
-  { key: "supplier",      label: "Supplier",     defaultVisible: true,  align: "left",   width: 120 },
-  { key: "status",        label: "Status",       defaultVisible: true,  align: "left",   width: 108 },
-  { key: "invoiceNumber", label: "Invoice #",    defaultVisible: false, align: "left",   width: 100 },
-  { key: "items",         label: "Items",        defaultVisible: true,  align: "right",  width: 72  },
-  { key: "created",       label: "Created",      defaultVisible: true,  align: "left",   width: 104 },
-  { key: "expected",      label: "Expected",     defaultVisible: true,  align: "left",   width: 104 },
-  { key: "currency",      label: "Currency",     defaultVisible: false, align: "left",   width: 72  },
-  { key: "subtotal",      label: "Subtotal",     defaultVisible: false, align: "right",  width: 100 },
-  { key: "landedCost",    label: "Landed Cost",  defaultVisible: true,  align: "right",  width: 112 },
-  { key: "progress",      label: "Received",     defaultVisible: true,  align: "right",  width: 128 },
+  { key: "poNumber",      label: "PO #",        defaultVisible: true,  align: "left",   width: 160 },
+  { key: "supplier",      label: "Supplier",     defaultVisible: true,  align: "left",   width: 130 },
+  { key: "status",        label: "Status",       defaultVisible: true,  align: "left",   width: 115 },
+  { key: "invoiceNumber", label: "Invoice #",    defaultVisible: false, align: "left",   width: 110 },
+  { key: "items",         label: "Items",        defaultVisible: true,  align: "right",  width: 80  },
+  { key: "created",       label: "Created",      defaultVisible: true,  align: "left",   width: 110 },
+  { key: "expected",      label: "Expected",     defaultVisible: true,  align: "left",   width: 110 },
+  { key: "currency",      label: "Currency",     defaultVisible: false, align: "left",   width: 80  },
+  { key: "subtotal",      label: "Subtotal",     defaultVisible: false, align: "right",  width: 110 },
+  { key: "landedCost",    label: "Landed Cost",  defaultVisible: true,  align: "right",  width: 120 },
+  { key: "progress",      label: "Received",     defaultVisible: true,  align: "right",  width: 140 },
 ];
 
 const ALWAYS_VISIBLE: POColKey[] = ["poNumber", "supplier", "status"];
@@ -323,9 +323,10 @@ export default function PurchaseOrdersIndex() {
   const CHECKBOX_W = 52;
   const ACTION_W = 88;
   const totalDataWidth = visibleColDefs.reduce((s, c) => s + c.width, 0);
+  const totalTableWidth = CHECKBOX_W + totalDataWidth + ACTION_W;
 
-  function colPct(width: number) {
-    return `${(width / totalDataWidth) * 100}%`;
+  function weightedPct(width: number) {
+    return `${(width / totalTableWidth) * 100}%`;
   }
 
   return (
@@ -429,11 +430,11 @@ export default function PurchaseOrdersIndex() {
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", minWidth: tableMinWidth, borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <colgroup>
-                  <col style={{ width: CHECKBOX_W }} />
+                  <col style={{ width: weightedPct(CHECKBOX_W) }} />
                   {visibleColDefs.map((col) => (
-                    <col key={col.key} style={{ width: colPct(col.width) }} />
+                    <col key={col.key} style={{ width: weightedPct(col.width) }} />
                   ))}
-                  <col style={{ width: ACTION_W }} />
+                  <col style={{ width: weightedPct(ACTION_W) }} />
                 </colgroup>
                 <thead>
                   <tr>
