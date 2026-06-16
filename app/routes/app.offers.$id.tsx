@@ -157,7 +157,7 @@ export default function OfferDetail() {
   });
 
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title={shortId}>
         <button onClick={() => navigate("/app/offers")}>Back to Offers</button>
         {canConvert && (

@@ -22,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [openPOs, openOffers, supplierCount, recentPOs, pendingReceiptPOs] =
+  const [openPOs, openOffers, supplierCount, recentPOs, candidatePendingReceiptPOs] =
     await Promise.all([
       prisma.purchaseOrder.count({ where: { shop, status: { in: ["open", "in_transit"] } } }),
       prisma.offer.count({ where: { shop, status: { in: ["draft", "reserved", "partial"] } } }),
@@ -33,13 +33,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         take: 5,
         include: { supplier: { select: { name: true } } },
       }),
-      // Only POs actually in transit or partially received need action
       prisma.purchaseOrder.findMany({
-        where: { shop, status: { in: ["in_transit", "partially_received"] } },
+        where: { shop, status: { in: ["open", "in_transit", "partially_received"] } },
         orderBy: { createdAt: "desc" },
-        include: { supplier: { select: { name: true } } },
+        include: {
+          supplier: { select: { name: true } },
+          lineItems: {
+            select: { qtyOrdered: true, qtyReceived: true, qtyRejected: true },
+          },
+        },
       }),
     ]);
+
+  const pendingReceiptPOs = candidatePendingReceiptPOs.filter((po) =>
+    po.lineItems.some((line) => line.qtyOrdered - line.qtyReceived - line.qtyRejected > 0),
+  );
 
   return { openPOs, openOffers, pendingReceipts: pendingReceiptPOs.length, supplierCount, recentPOs, pendingReceiptPOs };
 };
@@ -181,34 +189,42 @@ export default function Dashboard() {
                     </Box>
                   ) : (
                     <BlockStack gap="100">
-                      {pendingReceiptPOs.map((po) => (
-                        <div
-                          key={po.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => navigate(`/app/purchase-orders/${po.id}`)}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/app/purchase-orders/${po.id}`); }}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "10px 12px",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            transition: "background 0.1s",
-                            border: "1px solid transparent",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#f3f4f6"; (e.currentTarget as HTMLDivElement).style.borderColor = "#e1e3e5"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.borderColor = "transparent"; }}
-                        >
-                          <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
-                          <Text as="span" variant="bodyMd" tone="subdued">{po.supplier.name}</Text>
-                          <Badge tone={po.status === "partially_received" ? "warning" : "info"}>
-                            {po.status === "partially_received" ? "Partial" : "In Transit"}
-                          </Badge>
-                          <Text as="span" variant="bodySm" tone="subdued">View →</Text>
-                        </div>
-                      ))}
+                      {pendingReceiptPOs.map((po) => {
+                        const statusLabel = po.status === "partially_received"
+                          ? "Partial"
+                          : po.status === "in_transit"
+                            ? "In Transit"
+                            : "Open";
+
+                        return (
+                          <div
+                            key={po.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => navigate(`/app/purchase-orders/${po.id}`)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/app/purchase-orders/${po.id}`); }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "10px 12px",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              transition: "background 0.1s",
+                              border: "1px solid transparent",
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#f3f4f6"; (e.currentTarget as HTMLDivElement).style.borderColor = "#e1e3e5"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; (e.currentTarget as HTMLDivElement).style.borderColor = "transparent"; }}
+                          >
+                            <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
+                            <Text as="span" variant="bodyMd" tone="subdued">{po.supplier.name}</Text>
+                            <Badge tone={po.status === "partially_received" ? "warning" : "info"}>
+                              {statusLabel}
+                            </Badge>
+                            <Text as="span" variant="bodySm" tone="subdued">View →</Text>
+                          </div>
+                        );
+                      })}
                     </BlockStack>
                   )}
                 </BlockStack>

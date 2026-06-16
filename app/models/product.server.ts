@@ -4,7 +4,28 @@ export async function getProducts(shop: string) {
   return prisma.product.findMany({
     where: { shop },
     orderBy: { title: "asc" },
-    include: { _count: { select: { supplierMappings: true } } },
+    include: {
+      supplierMappings: {
+        include: { supplier: { select: { name: true } } },
+        orderBy: { updatedAt: "desc" },
+      },
+      poLineItems: {
+        where: { purchaseOrder: { status: { not: "cancelled" } } },
+        select: {
+          qtyOrdered: true,
+          qtyReceived: true,
+          qtyRejected: true,
+        },
+      },
+      offerItems: {
+        where: { offer: { status: { in: ["draft", "reserved", "partial"] } } },
+        select: {
+          qtyReserved: true,
+          qtyFulfilled: true,
+        },
+      },
+      _count: { select: { supplierMappings: true } },
+    },
   });
 }
 

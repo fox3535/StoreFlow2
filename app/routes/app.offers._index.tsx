@@ -95,7 +95,7 @@ export default function OffersIndex() {
   );
 
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title="Offers / Reserves">
         <button variant="primary" onClick={() => navigate("/app/offers/new")}>
           Create Offer

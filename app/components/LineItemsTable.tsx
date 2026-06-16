@@ -1,5 +1,5 @@
 import React from "react";
-import { TextField, Text, Button, InlineStack } from "@shopify/polaris";
+import { TextField, Button } from "@shopify/polaris";
 
 export type LineItem = {
   id: string;
@@ -22,7 +22,7 @@ type Props = {
   onRemove: (id: string) => void;
 };
 
-const COLS = "48px 2fr 1.4fr 76px 108px 90px 72px";
+const COLS = "56px minmax(340px, 2.4fr) minmax(190px, 1.2fr) 96px 130px 110px 86px";
 
 const thStyle: React.CSSProperties = {
   fontSize: 11,
@@ -142,7 +142,7 @@ function LineItemRow({
         autoComplete="off"
       />
 
-      {/* Row total */}
+      {/* Cost total = quantity * entered unit cost, before landed-cost allocation */}
       <div style={{ paddingTop: 7, fontSize: 13, color: "#202223", fontWeight: 500, textAlign: "right" }}>
         ${total.toFixed(2)}
       </div>
@@ -164,7 +164,8 @@ function LineItemRow({
 
 export function LineItemsTable({ items, onChange, onRemove }: Props) {
   return (
-    <div>
+    <div style={{ overflowX: "auto", width: "100%" }}>
+      <div style={{ minWidth: 1040 }}>
       {/* Header row */}
       <div
         style={{
@@ -176,7 +177,7 @@ export function LineItemsTable({ items, onChange, onRemove }: Props) {
           alignItems: "center",
         }}
       >
-        {(["", "Description / Product", "Supplier SKU", "Qty", "Unit Cost", "Row Total", ""] as const).map(
+        {(["", "Description / Product", "Supplier SKU", "Qty", "Unit Cost", "Cost Total", ""] as const).map(
           (h, i) => (
             <span key={i} style={{ ...thStyle, textAlign: i >= 3 && i <= 5 ? "right" : "left" }}>
               {h}
@@ -195,6 +196,7 @@ export function LineItemsTable({ items, onChange, onRemove }: Props) {
           isOnly={items.length === 1}
         />
       ))}
+      </div>
     </div>
   );
 }

@@ -81,7 +81,7 @@ export default function PurchaseOrdersIndex() {
   );
 
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title="Purchase Orders">
         <button variant="primary" onClick={() => navigate("/app/purchase-orders/new")}>
           Create PO

@@ -24,6 +24,13 @@ export type PurchaseOrderInput = {
   lineItems: LineItemInput[];
 };
 
+export type ReceiveLineInput = {
+  lineItemId: string;
+  qtyReceived: number;
+  qtyRejected: number;
+  qtyBackordered: number;
+};
+
 function calcLandedCost(
   subtotal: number,
   freight: number,
@@ -34,6 +41,13 @@ function calcLandedCost(
   adjustment: number,
 ): number {
   return (subtotal + freight + tax + other - discounts) * rate + adjustment;
+}
+
+function weightedAverage(currentQty: number, currentAvg: number, addedQty: number, addedCost: number) {
+  if (addedQty <= 0) return currentAvg;
+  const nextQty = currentQty + addedQty;
+  if (nextQty <= 0) return addedCost;
+  return ((currentQty * currentAvg) + (addedQty * addedCost)) / nextQty;
 }
 
 async function nextPoNumber(shop: string): Promise<string> {
@@ -97,8 +111,8 @@ export async function createPurchaseOrder(
     adjustment,
   );
 
-  const lineCount = data.lineItems.length;
-  const landedPerUnit = lineCount > 0 ? totalLandedCost / lineCount : 0;
+  const totalQty = data.lineItems.reduce((sum, item) => sum + item.qtyOrdered, 0);
+  const landedPerUnit = totalQty > 0 ? totalLandedCost / totalQty : 0;
 
   return prisma.purchaseOrder.create({
     data: {
@@ -243,6 +257,185 @@ export async function addLineItemToPO(
   if (!po) return null;
   return prisma.purchaseOrderLineItem.create({
     data: { poId, qtyOrdered: 1, unitCost: 0, landedCostPerUnit: 0, action: "restock" },
+  });
+}
+
+export async function receivePurchaseOrder(
+  shop: string,
+  poId: string,
+  lines: ReceiveLineInput[],
+) {
+  const cleanLines = lines
+    .map((line) => ({
+      lineItemId: line.lineItemId,
+      qtyReceived: Math.max(0, Math.floor(line.qtyReceived || 0)),
+      qtyRejected: Math.max(0, Math.floor(line.qtyRejected || 0)),
+      qtyBackordered: Math.max(0, Math.floor(line.qtyBackordered || 0)),
+    }))
+    .filter((line) => line.qtyReceived > 0 || line.qtyRejected > 0 || line.qtyBackordered > 0);
+
+  if (!cleanLines.length) {
+    return { ok: false, error: "Enter at least one received, rejected, or backordered quantity." };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const po = await tx.purchaseOrder.findFirst({
+      where: { shop, id: poId },
+      include: {
+        lineItems: { include: { product: true } },
+      },
+    });
+
+    if (!po) return { ok: false, error: "Purchase order not found." };
+    if (po.status === "cancelled" || po.status === "received") {
+      return { ok: false, error: "This purchase order is not open for receiving." };
+    }
+
+    const totalOrderedQty = po.lineItems.reduce((sum, item) => sum + item.qtyOrdered, 0);
+    const avgLandedPerUnit = totalOrderedQty > 0 ? po.totalLandedCost / totalOrderedQty : 0;
+    const productCostState = new Map(
+      po.lineItems
+        .filter((line) => line.productId && line.product)
+        .map((line) => [
+          line.productId!,
+          {
+            currentQuantity: line.product!.currentQuantity,
+            avgCost: line.product!.avgCost,
+            avgLandedCost: line.product!.avgLandedCost,
+          },
+        ]),
+    );
+
+    for (const input of cleanLines) {
+      const line = po.lineItems.find((item) => item.id === input.lineItemId);
+      if (!line) return { ok: false, error: "Receiving line item not found." };
+
+      const openQty = Math.max(0, line.qtyOrdered - line.qtyReceived - line.qtyRejected);
+      const qtyReceived = Math.min(input.qtyReceived, openQty);
+      const afterReceiveOpenQty = Math.max(0, openQty - qtyReceived);
+      const qtyRejected = Math.min(input.qtyRejected, afterReceiveOpenQty);
+      const afterRejectOpenQty = Math.max(0, afterReceiveOpenQty - qtyRejected);
+      const qtyBackordered = Math.min(input.qtyBackordered, afterRejectOpenQty);
+
+      if (qtyReceived <= 0 && qtyRejected <= 0 && qtyBackordered <= 0) continue;
+
+      await tx.receivingRecord.create({
+        data: {
+          shop,
+          poId,
+          lineItemId: line.id,
+          productId: line.productId,
+          qtyReceived,
+          qtyRejected,
+          qtyBackordered,
+          action: line.action,
+        },
+      });
+
+      await tx.purchaseOrderLineItem.update({
+        where: { id: line.id },
+        data: {
+          qtyReceived: { increment: qtyReceived },
+          qtyRejected: { increment: qtyRejected },
+          // Received or rejected goods reduce previously backordered units first.
+          qtyBackordered: Math.max(0, line.qtyBackordered - qtyReceived - qtyRejected) + qtyBackordered,
+        },
+      });
+
+      if (qtyReceived > 0 && line.productId && line.product) {
+        const currentState = productCostState.get(line.productId) ?? {
+          currentQuantity: line.product.currentQuantity,
+          avgCost: line.product.avgCost,
+          avgLandedCost: line.product.avgLandedCost,
+        };
+        const unitCostBasis = line.unitCost * (po.exchangeRate || 1);
+        const nextAvgCost = weightedAverage(currentState.currentQuantity, currentState.avgCost, qtyReceived, unitCostBasis);
+        const nextAvgLandedCost = weightedAverage(
+          currentState.currentQuantity,
+          currentState.avgLandedCost,
+          qtyReceived,
+          avgLandedPerUnit,
+        );
+        const nextQuantity = currentState.currentQuantity + qtyReceived;
+
+        await tx.product.update({
+          where: { id: line.productId },
+          data: {
+            currentQuantity: { increment: qtyReceived },
+            avgCost: nextAvgCost,
+            avgLandedCost: nextAvgLandedCost,
+          },
+        });
+        productCostState.set(line.productId, {
+          currentQuantity: nextQuantity,
+          avgCost: nextAvgCost,
+          avgLandedCost: nextAvgLandedCost,
+        });
+
+        await tx.supplierSkuMapping.updateMany({
+          where: {
+            shop,
+            supplierId: po.supplierId,
+            productId: line.productId,
+            ...(line.supplierSku ? { supplierSku: line.supplierSku } : {}),
+          },
+          data: { lastUsedCost: line.unitCost },
+        });
+
+        if (po.offerId) {
+          const offerItem = await tx.offerItem.findFirst({
+            where: {
+              offerId: po.offerId,
+              OR: [
+                { productId: line.productId },
+                ...(line.supplierSku ? [{ supplierSku: line.supplierSku }] : []),
+                ...(line.description ? [{ description: line.description }] : []),
+              ],
+            },
+            orderBy: { id: "asc" },
+          });
+
+          if (offerItem) {
+            await tx.offerItem.update({
+              where: { id: offerItem.id },
+              data: { qtyFulfilled: Math.min(offerItem.qtyReserved, offerItem.qtyFulfilled + qtyReceived) },
+            });
+          }
+        }
+      }
+    }
+
+    const updatedItems = await tx.purchaseOrderLineItem.findMany({ where: { poId } });
+    const anyProcessed = updatedItems.some(
+      (item) => item.qtyReceived > 0 || item.qtyRejected > 0 || item.qtyBackordered > 0,
+    );
+    const allAccountedFor = updatedItems.every(
+      (item) => item.qtyReceived + item.qtyRejected >= item.qtyOrdered,
+    );
+
+    const nextStatus = allAccountedFor
+      ? "received"
+      : anyProcessed
+        ? "partially_received"
+        : po.status;
+
+    await tx.purchaseOrder.update({
+      where: { id: poId },
+      data: { status: nextStatus },
+    });
+
+    if (po.offerId) {
+      const offerItems = await tx.offerItem.findMany({ where: { offerId: po.offerId } });
+      const allFulfilled = offerItems.length > 0 && offerItems.every((item) => item.qtyFulfilled >= item.qtyReserved);
+      const anyFulfilled = offerItems.some((item) => item.qtyFulfilled > 0);
+
+      await tx.offer.update({
+        where: { id: po.offerId },
+        data: { status: allFulfilled ? "completed" : anyFulfilled ? "partial" : "reserved" },
+      });
+    }
+
+    return { ok: true, status: nextStatus };
   });
 }
 

@@ -27,7 +27,7 @@ export const ALL_COLS: ColDef[] = [
   { key: "barcode",     label: "Barcode",             width: 120, align: "left",   defaultVisible: false, alwaysVisible: false },
   { key: "retail",      label: "Retail",              width: 84,  align: "right",  defaultVisible: true,  alwaysVisible: false },
   { key: "cost",        label: "Cost",                width: 92,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
-  { key: "landed",      label: "Landed/unit",         width: 94,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "landed",      label: "Avg landed/unit",     width: 112, align: "right",  defaultVisible: true,  alwaysVisible: false },
   { key: "markup",      label: "Markup",              width: 74,  align: "right",  defaultVisible: true,  alwaysVisible: false },
   { key: "margin",      label: "Margin",              width: 74,  align: "right",  defaultVisible: true,  alwaysVisible: false },
   { key: "available",   label: "In Stock",            width: 76,  align: "right",  defaultVisible: true,  alwaysVisible: false },
@@ -35,7 +35,7 @@ export const ALL_COLS: ColDef[] = [
   { key: "qty",         label: "Qty",                 width: 76,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
   { key: "qtyReceived", label: "Recv",                width: 62,  align: "right",  defaultVisible: false, alwaysVisible: false },
   { key: "qtyRejected", label: "Rej",                 width: 58,  align: "right",  defaultVisible: false, alwaysVisible: false },
-  { key: "lineTotal",   label: "Row Total",           width: 92,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "lineTotal",   label: "Cost Total",          width: 92,  align: "right",  defaultVisible: true,  alwaysVisible: false },
 ];
 
 export const DEFAULT_VISIBLE = new Set<ColKey>(
@@ -203,7 +203,8 @@ function POLineItemRow({
   const displayBarcode = p?.barcode ?? item.pickedBarcode ?? null;
   const retail       = p?.currentPrice ?? (parseFloat(item.pickedRetailPrice ?? "0") || 0);
   const available    = p?.currentQuantity ?? 0;
-  const onOrder      = Math.max(0, qty - item.qtyReceived);
+  const onOrder      = Math.max(0, qty - item.qtyReceived - item.qtyRejected);
+  // This is a PO-wide average allocation: total landed cost divided by total ordered units.
   const lpu          = landedPerUnit;
 
   const markup = retail > 0 && lpu > 0
@@ -286,7 +287,7 @@ function POLineItemRow({
         <TI value={item.unitCost} onChange={(v) => onChange(item.id, "unitCost", v)} type="number" align="right" disabled={disabled} />
       )}
 
-      {/* Landed cost/unit */}
+      {/* PO-wide average landed cost/unit */}
       {cell("landed",
         <RO value={lpu > 0 ? `$${lpu.toFixed(2)}` : "—"} align="right" tone={lpu > 0 ? undefined : "subdued"} />
       )}
@@ -335,7 +336,7 @@ function POLineItemRow({
         <RO value={String(item.qtyRejected)} align="right" tone={item.qtyRejected > 0 ? "critical" : undefined} />
       )}
 
-      {/* Line Total */}
+      {/* Cost total = quantity * entered unit cost, before landed-cost allocation */}
       {cell("lineTotal", <RO value={`$${lineTotal.toFixed(2)}`} align="right" bold />)}
 
       {/* Remove */}

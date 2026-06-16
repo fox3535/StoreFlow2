@@ -48,8 +48,8 @@ const STATUS_BADGE: Record<string, { tone: "info" | "warning" | "success" | "cri
 const STATUS_TRANSITIONS: Record<string, { label: string; next: string; critical?: boolean }[]> = {
   draft:              [{ label: "Send to Supplier", next: "open" }],
   open:               [{ label: "Mark In Transit",  next: "in_transit" }, { label: "Cancel", next: "cancelled", critical: true }],
-  in_transit:         [{ label: "Mark Received",    next: "received" }],
-  partially_received: [{ label: "Mark Received",    next: "received" }],
+  in_transit:         [],
+  partially_received: [],
   received:           [],
   cancelled:          [],
 };
@@ -126,6 +126,7 @@ export default function PurchaseOrderDetail() {
   const canEdit     = EDITABLE.has(po.status);
   const badge       = STATUS_BADGE[po.status] ?? { tone: undefined, label: po.status };
   const transitions = STATUS_TRANSITIONS[po.status] ?? [];
+  const canReceive   = ["open", "in_transit", "partially_received"].includes(po.status);
   const saving      = fetcher.state !== "idle";
   const justSaved   = fetcher.state === "idle" && (fetcher.data as any)?.saved;
 
@@ -359,6 +360,15 @@ export default function PurchaseOrderDetail() {
             </BlockStack>
 
             <InlineStack gap="200">
+              {canReceive && (
+                <Button
+                  size="slim"
+                  variant="primary"
+                  onClick={() => navigate(`/app/purchase-orders/${po.id}/receiving`)}
+                >
+                  Receive Stock
+                </Button>
+              )}
               {transitions.map((t) => (
                 <Button key={t.next} size="slim"
                   tone={t.critical ? "critical" : undefined}
@@ -473,10 +483,15 @@ export default function PurchaseOrderDetail() {
                     </Text>
                   </InlineStack>
                   {landedPerUnit > 0 && (
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodySm" tone="subdued">Per Unit</Text>
-                      <Text as="span" variant="bodySm">${landedPerUnit.toFixed(3)}</Text>
-                    </InlineStack>
+                    <BlockStack gap="050">
+                      <InlineStack align="space-between">
+                        <Text as="span" variant="bodySm" tone="subdued">Avg Landed / Unit</Text>
+                        <Text as="span" variant="bodySm">${landedPerUnit.toFixed(3)}</Text>
+                      </InlineStack>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Allocated from total landed cost across all ordered units.
+                      </Text>
+                    </BlockStack>
                   )}
                   <InlineStack align="space-between">
                     <Text as="span" variant="bodySm" tone="subdued">Currency</Text>
