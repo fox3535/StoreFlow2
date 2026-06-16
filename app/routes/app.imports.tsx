@@ -130,9 +130,11 @@ export default function Imports() {
                     <Text as="p" variant="bodyMd" tone="subdued">
                       Drop your CSV file here or click to browse
                     </Text>
-                    <Button onClick={() => fileInputRef.current?.click()}>
-                      Choose File
-                    </Button>
+                    <div style={{ display: "inline-flex" }}>
+                      <Button onClick={() => fileInputRef.current?.click()}>
+                        Choose File
+                      </Button>
+                    </div>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Supports .csv files up to 10 MB
                     </Text>

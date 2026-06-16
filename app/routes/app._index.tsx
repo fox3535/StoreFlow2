@@ -85,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 // ---------------------------------------------------------------------------
-// StatCard
+// StatCard — uniform height, CSS hover on clickable cards
 // ---------------------------------------------------------------------------
 function StatCard({
   label, value, sub, tone, onClick,
@@ -94,29 +94,31 @@ function StatCard({
   tone?: "success" | "warning" | "critical" | "info" | "attention";
   onClick?: () => void;
 }) {
+  const clickable = Boolean(onClick);
+
   return (
-    <Card>
-      <div
-        style={{ cursor: onClick ? "pointer" : undefined }}
-        onClick={onClick}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onKeyDown={onClick ? (e) => { if (e.key === "Enter") onClick(); } : undefined}
-      >
-        <BlockStack gap="200">
-          <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
-          <Text as="p" variant="headingXl" fontWeight="bold">{String(value)}</Text>
-          {sub && <Text as="p" variant="bodySm" tone="subdued">{sub}</Text>}
-          {tone && (
-            <div>
-              <Badge tone={tone}>
-                {tone === "success" ? "On track" : tone === "warning" || tone === "attention" ? "Needs attention" : tone === "critical" ? "Action required" : "Active"}
-              </Badge>
-            </div>
-          )}
-        </BlockStack>
+    <div
+      className={clickable ? "dash-kpi dash-kpi--clickable" : "dash-kpi"}
+      onClick={onClick}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") onClick!(); } : undefined}
+    >
+      <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
+      <Text as="p" variant="headingXl" fontWeight="bold">{String(value)}</Text>
+      <div className="dash-kpi__footer">
+        {sub
+          ? <Text as="p" variant="bodySm" tone="subdued">{sub}</Text>
+          : <span aria-hidden="true" className="dash-kpi__spacer" />}
+        {tone
+          ? (
+            <Badge tone={tone}>
+              {tone === "success" ? "On track" : tone === "warning" || tone === "attention" ? "Needs attention" : tone === "critical" ? "Action required" : "Active"}
+            </Badge>
+          )
+          : <span aria-hidden="true" className="dash-kpi__spacer" />}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -133,13 +135,79 @@ export default function Dashboard() {
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
+  const thBase: React.CSSProperties = {
+    padding: "8px 16px",
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "#6d7175",
+    whiteSpace: "nowrap",
+    background: "#fafbfb",
+  };
+
+  const recentPoCols: { label: string; align: "left" | "center" | "right" }[] = [
+    { label: "PO #",         align: "left"   },
+    { label: "Supplier",     align: "left"   },
+    { label: "Items",        align: "center" },
+    { label: "Landed Cost",  align: "right"  },
+    { label: "Status",       align: "left"   },
+    { label: "Date",         align: "left"   },
+  ];
+
+  const pendingCols: { label: string; align: "left" | "center" | "right" }[] = [
+    { label: "PO #",         align: "left"   },
+    { label: "Supplier",     align: "left"   },
+    { label: "Status",       align: "left"   },
+    { label: "Outstanding",  align: "right"  },
+    { label: "Action",       align: "right"  },
+  ];
+
   return (
     <Page fullWidth>
+      <style>{`
+        .dash-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          align-items: stretch;
+        }
+        .dash-kpi {
+          height: 100%;
+          min-height: 136px;
+          padding: 16px 20px;
+          background: #fff;
+          border-radius: 12px;
+          border: 1px solid #e1e3e5;
+          box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .dash-kpi--clickable { cursor: pointer; }
+        .dash-kpi--clickable:hover {
+          transform: translateY(-2px);
+          border-color: rgba(0, 91, 211, 0.4);
+          box-shadow: 0 6px 18px rgba(26, 26, 26, 0.1);
+        }
+        .dash-kpi--clickable:active { transform: translateY(0); }
+        .dash-kpi__footer {
+          margin-top: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-height: 44px;
+          justify-content: flex-end;
+        }
+        .dash-kpi__spacer { display: block; min-height: 20px; }
+      `}</style>
+
       <TitleBar title="ShelfFlow" />
 
       <BlockStack gap="600">
         {/* ── Row 1: Operational counts ─────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div className="dash-kpi-grid">
           <StatCard
             label="Open Purchase Orders"
             value={openPOs}
@@ -163,7 +231,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Row 2: Financial / inventory KPIs ─────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div className="dash-kpi-grid">
           <StatCard
             label="$ Value on Order"
             value={`$${valueOnOrder.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -211,12 +279,20 @@ export default function Dashboard() {
                 </Box>
               ) : (
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                    <colgroup>
+                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "8%" }} />
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "16%" }} />
+                    </colgroup>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #e1e3e5" }}>
-                        {["PO #", "Supplier", "Items", "Landed Cost", "Status", "Date"].map((h) => (
-                          <th key={h} style={{ padding: "8px 16px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6d7175", textAlign: "left", whiteSpace: "nowrap", background: "#fafbfb" }}>
-                            {h}
+                        {recentPoCols.map((col) => (
+                          <th key={col.label} style={{ ...thBase, textAlign: col.align }}>
+                            {col.label}
                           </th>
                         ))}
                       </tr>
@@ -272,12 +348,19 @@ export default function Dashboard() {
                 </Box>
               ) : (
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                    <colgroup>
+                      <col style={{ width: "24%" }} />
+                      <col style={{ width: "24%" }} />
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "16%" }} />
+                    </colgroup>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #e1e3e5" }}>
-                        {["PO #", "Supplier", "Status", "Outstanding", "Action"].map((h) => (
-                          <th key={h} style={{ padding: "8px 16px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6d7175", textAlign: "left", whiteSpace: "nowrap", background: "#fafbfb" }}>
-                            {h}
+                        {pendingCols.map((col) => (
+                          <th key={col.label} style={{ ...thBase, textAlign: col.align }}>
+                            {col.label}
                           </th>
                         ))}
                       </tr>
@@ -308,11 +391,11 @@ export default function Dashboard() {
                                 onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
                               <Badge tone={meta.tone}>{meta.label}</Badge>
                             </td>
-                            <td style={{ padding: "10px 16px", textAlign: "center" }}
+                            <td style={{ padding: "10px 16px", textAlign: "right", whiteSpace: "nowrap" }}
                                 onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
                               {outstanding} units
                             </td>
-                            <td style={{ padding: "10px 16px" }}>
+                            <td style={{ padding: "10px 16px", textAlign: "right" }}>
                               <Button size="slim" variant="plain"
                                 onClick={() => navigate(`/app/purchase-orders/${po.id}/receiving`)}>
                                 Receive

@@ -164,26 +164,25 @@ export default function Products() {
   const [colPopoverOpen, setColPopoverOpen] = useState(false);
   const [visibleColKeys, setVisibleColKeys] = useState<ColKey[]>(DEFAULT_VISIBLE);
 
+  const isSyncing = syncFetcher.state !== "idle";
+
   const activeCols = useMemo(
     () => ALL_COLS.filter((col) => visibleColKeys.includes(col.key)),
     [visibleColKeys],
   );
 
-  function submitSync() {
-    const formData = new FormData();
-    formData.append("intent", "syncShopifyProducts");
-    syncFetcher.submit(formData, { method: "post" });
+  function triggerSync() {
+    syncFetcher.submit({ intent: "syncShopifyProducts" }, { method: "post" });
   }
 
   const emptyStateMarkup = (
     <EmptyState
       heading="No products synced yet"
-      action={{ content: "Sync from Shopify", onAction: submitSync, loading: syncFetcher.state !== "idle" }}
       image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
     >
       <Text as="p" variant="bodyMd">
-        Sync products from your Shopify store to track SKUs, average cost,
-        landed cost, and stock levels alongside your purchase orders.
+        Use <strong>Sync from Shopify</strong> in the top-right to import products and track SKUs,
+        average cost, landed cost, and stock levels alongside your purchase orders.
       </Text>
     </EmptyState>
   );
@@ -219,7 +218,9 @@ export default function Products() {
   return (
     <Page fullWidth>
       <TitleBar title="Products">
-        <button variant="primary" onClick={submitSync}>Sync from Shopify</button>
+        <button type="button" variant="primary" disabled={isSyncing} onClick={triggerSync}>
+          {isSyncing ? "Syncing…" : "Sync from Shopify"}
+        </button>
       </TitleBar>
       <BlockStack gap="400">
         {syncFetcher.data && !syncFetcher.data.ok && (
@@ -265,9 +266,6 @@ export default function Products() {
                   />
                 </Box>
               </Popover>
-              <Button variant="primary" onClick={submitSync} loading={syncFetcher.state !== "idle"}>
-                Sync from Shopify
-              </Button>
             </InlineStack>
           </InlineStack>
         </Card>
