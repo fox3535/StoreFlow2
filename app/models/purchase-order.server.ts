@@ -21,6 +21,8 @@ export type PurchaseOrderInput = {
   otherCosts?: number;
   adjustment?: number;
   notes?: string | null;
+  invoiceNumber?: string | null;
+  expectedDate?: string | null;
   lineItems: LineItemInput[];
 };
 
@@ -65,6 +67,9 @@ export async function getPurchaseOrders(shop: string) {
     include: {
       supplier: { select: { name: true } },
       _count: { select: { lineItems: true } },
+      lineItems: {
+        select: { qtyOrdered: true, qtyReceived: true, qtyRejected: true },
+      },
     },
   });
 }
@@ -131,6 +136,8 @@ export async function createPurchaseOrder(
       adjustment,
       totalLandedCost,
       notes: data.notes ?? null,
+      invoiceNumber: data.invoiceNumber ?? null,
+      expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
       lineItems: {
         create: data.lineItems.map((item) => ({
           description: item.description,
@@ -161,6 +168,8 @@ export async function updatePurchaseOrder(
   id: string,
   data: {
     notes?: string | null;
+    invoiceNumber?: string | null;
+    expectedDate?: string | null;
     exchangeRate?: number;
     freightCost?: number;
     tax?: number;
@@ -236,6 +245,10 @@ export async function updatePurchaseOrder(
       where: { id },
       data: {
         notes: data.notes !== undefined ? data.notes : po.notes,
+        invoiceNumber: data.invoiceNumber !== undefined ? data.invoiceNumber : po.invoiceNumber,
+        expectedDate: data.expectedDate !== undefined
+          ? (data.expectedDate ? new Date(data.expectedDate) : null)
+          : po.expectedDate,
         exchangeRate,
         freightCost,
         tax,

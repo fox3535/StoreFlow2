@@ -57,6 +57,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const otherCosts    = parseFloat((formData.get("otherCosts")    as string) || "0");
   const adjustment    = parseFloat((formData.get("adjustment")    as string) || "0");
   const notes         = (formData.get("notes") as string) || null;
+  const invoiceNumber = (formData.get("invoiceNumber") as string) || null;
+  const expectedDate  = (formData.get("expectedDate")  as string) || null;
   const status        = (formData.get("status") as string) || "draft";
   const lineItemsJson = formData.get("lineItemsJson") as string;
 
@@ -82,6 +84,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await createPurchaseOrder(session.shop, {
     supplierId, status, currency, exchangeRate,
     freightCost, tax, discounts, otherCosts, adjustment, notes,
+    invoiceNumber, expectedDate,
     lineItems,
   });
 
@@ -116,9 +119,11 @@ export default function NewPurchaseOrder() {
   const submit     = useSubmit();
 
   // ── Form fields ───────────────────────────────────────────────────────────
-  const [supplierId,   setSupplierId]   = useState(suppliers[0]?.id ?? "");
-  const [currency,     setCurrency]     = useState(settings.defaultCurrency);
-  const [exchangeRate, setExchangeRate] = useState("1");
+  const [supplierId,     setSupplierId]     = useState(suppliers[0]?.id ?? "");
+  const [currency,       setCurrency]       = useState(settings.defaultCurrency);
+  const [exchangeRate,   setExchangeRate]   = useState("1");
+  const [invoiceNumber,  setInvoiceNumber]  = useState("");
+  const [expectedDate,   setExpectedDate]   = useState("");
   const [freightCost,  setFreightCost]  = useState("0");
   const [tax,          setTax]          = useState("0");
   const [discounts,    setDiscounts]    = useState("0");
@@ -218,6 +223,8 @@ export default function NewPurchaseOrder() {
     fd.append("otherCosts",    otherCosts);
     fd.append("adjustment",    adjustment);
     fd.append("notes",         notes);
+    fd.append("invoiceNumber", invoiceNumber);
+    fd.append("expectedDate",  expectedDate);
     fd.append("status",        status);
     fd.append("lineItemsJson", JSON.stringify(serializedItems));
     submit(fd, { method: "post" });
@@ -256,17 +263,19 @@ export default function NewPurchaseOrder() {
         )}
 
         {/* Order details row — spans full width above the two-col grid */}
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Order Details</Text>
-            <Divider />
-            <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
-              <Select label="Supplier" options={supplierOptions} value={supplierId} onChange={setSupplierId} error={errors.supplierId} />
-              <Select label="Currency" options={CURRENCY_OPTIONS} value={currency} onChange={setCurrency} />
-              <TextField label="Exchange Rate" type="number" value={exchangeRate} onChange={setExchangeRate} helpText="Multiply cost × rate for local currency" autoComplete="off" />
-            </InlineGrid>
-          </BlockStack>
-        </Card>
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">Order Details</Text>
+                  <Divider />
+                  <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+                    <Select label="Supplier" options={supplierOptions} value={supplierId} onChange={setSupplierId} error={errors.supplierId} />
+                    <Select label="Currency" options={CURRENCY_OPTIONS} value={currency} onChange={setCurrency} />
+                    <TextField label="Exchange Rate" type="number" value={exchangeRate} onChange={setExchangeRate} helpText="Multiply cost × rate for local currency" autoComplete="off" />
+                    <TextField label="Invoice #" value={invoiceNumber} onChange={setInvoiceNumber} placeholder="Optional" autoComplete="off" />
+                    <TextField label="Expected Arrival" type="date" value={expectedDate} onChange={setExpectedDate} autoComplete="off" />
+                  </InlineGrid>
+                </BlockStack>
+              </Card>
 
         {/* Two-column body: wide line-item spreadsheet + sticky cost panel */}
         <div className="po-new-outer">

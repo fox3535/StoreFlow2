@@ -154,24 +154,26 @@ model OfferItem {
 // Purchase Orders
 // ---------------------------------------------------------------------------
 model PurchaseOrder {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   shop            String
   poNumber        String
   supplierId      String
   offerId         String?
-  status          String   @default("draft")
-  currency        String   @default("USD")
-  exchangeRate    Float    @default(1)
-  subtotal        Float    @default(0)
-  freightCost     Float    @default(0)
-  tax             Float    @default(0)
-  discounts       Float    @default(0)
-  otherCosts      Float    @default(0)
-  adjustment      Float    @default(0)
-  totalLandedCost Float    @default(0)
+  status          String    @default("draft")
+  currency        String    @default("USD")
+  exchangeRate    Float     @default(1)
+  subtotal        Float     @default(0)
+  freightCost     Float     @default(0)
+  tax             Float     @default(0)
+  discounts       Float     @default(0)
+  otherCosts      Float     @default(0)
+  adjustment      Float     @default(0)
+  totalLandedCost Float     @default(0)
   notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  invoiceNumber   String?
+  expectedDate    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   supplier         Supplier                @relation(fields: [supplierId], references: [id])
   offer            Offer?                  @relation(fields: [offerId], references: [id])
