@@ -116,29 +116,31 @@ export default function Imports() {
                     borderRadius: 8,
                     padding: "48px 24px",
                     background: dragOver ? "#f3f6ff" : "#fafbfb",
-                    textAlign: "center",
                     transition: "all 0.15s",
                     cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 12,
                   }}
                   onClick={() => fileInputRef.current?.click()}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
                 >
-                  <BlockStack gap="300" align="center">
-                    <div style={{ fontSize: 32 }}>📂</div>
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      Drop your CSV file here or click to browse
-                    </Text>
-                    <div style={{ display: "inline-flex" }}>
-                      <Button onClick={() => fileInputRef.current?.click()}>
-                        Choose File
-                      </Button>
-                    </div>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Supports .csv files up to 10 MB
-                    </Text>
-                  </BlockStack>
+                  <div style={{ fontSize: 32, lineHeight: 1 }}>📂</div>
+                  <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                    Drop your CSV file here or click to browse
+                  </Text>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Button onClick={() => fileInputRef.current?.click()}>
+                      Choose File
+                    </Button>
+                  </div>
+                  <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                    Supports .csv files up to 10 MB
+                  </Text>
                 </div>
               )}
 

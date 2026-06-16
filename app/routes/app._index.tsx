@@ -146,19 +146,20 @@ export default function Dashboard() {
     background: "#fafbfb",
   };
 
-  const recentPoCols: { label: string; align: "left" | "center" | "right" }[] = [
-    { label: "PO #",         align: "left"   },
-    { label: "Supplier",     align: "left"   },
-    { label: "Items",        align: "center" },
-    { label: "Landed Cost",  align: "right"  },
-    { label: "Status",       align: "left"   },
-    { label: "Date",         align: "left"   },
+  const recentPoCols: { label: string; align: "left" | "center" | "right"; width: string }[] = [
+    { label: "PO #",        align: "left",   width: "17%" },
+    { label: "Supplier",    align: "left",   width: "18%" },
+    { label: "Items",       align: "center", width: "8%"  },
+    { label: "Status",      align: "left",   width: "14%" },
+    { label: "Date",        align: "left",   width: "13%" },
+    { label: "Landed Cost", align: "right",  width: "30%" },
   ];
 
   const pendingCols: { label: string; align: "left" | "center" | "right" }[] = [
     { label: "PO #",         align: "left"   },
     { label: "Supplier",     align: "left"   },
     { label: "Status",       align: "left"   },
+    { label: "Landed Cost",  align: "right"  },
     { label: "Outstanding",  align: "right"  },
     { label: "Action",       align: "right"  },
   ];
@@ -281,12 +282,9 @@ export default function Dashboard() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "22%" }} />
-                      <col style={{ width: "22%" }} />
-                      <col style={{ width: "8%" }} />
-                      <col style={{ width: "16%" }} />
-                      <col style={{ width: "16%" }} />
-                      <col style={{ width: "16%" }} />
+                      {recentPoCols.map((col) => (
+                        <col key={col.label} style={{ width: col.width }} />
+                      ))}
                     </colgroup>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #e1e3e5" }}>
@@ -300,6 +298,20 @@ export default function Dashboard() {
                     <tbody>
                       {recentPOs.map((po) => {
                         const meta = STATUS_META[po.status] ?? { tone: undefined, label: po.status };
+                        const cells: React.ReactNode[] = [
+                          <td key="po" style={{ padding: "10px 16px", fontWeight: 600, whiteSpace: "nowrap", textAlign: "left" }}>{po.poNumber}</td>,
+                          <td key="sup" style={{ padding: "10px 16px", whiteSpace: "nowrap", textAlign: "left" }}>{po.supplier.name}</td>,
+                          <td key="items" style={{ padding: "10px 16px", textAlign: "center" }}>{po._count.lineItems}</td>,
+                          <td key="status" style={{ padding: "10px 16px", textAlign: "left" }}>
+                            <Badge tone={meta.tone}>{meta.label}</Badge>
+                          </td>,
+                          <td key="date" style={{ padding: "10px 16px", color: "#6d7175", whiteSpace: "nowrap", textAlign: "left" }}>
+                            {fmtDate(po.createdAt)}
+                          </td>,
+                          <td key="cost" style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            ${po.totalLandedCost.toFixed(2)}
+                          </td>,
+                        ];
                         return (
                           <tr
                             key={po.id}
@@ -308,18 +320,7 @@ export default function Dashboard() {
                             onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = "#f6f6f7"; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = ""; }}
                           >
-                            <td style={{ padding: "10px 16px", fontWeight: 600, whiteSpace: "nowrap" }}>{po.poNumber}</td>
-                            <td style={{ padding: "10px 16px", whiteSpace: "nowrap" }}>{po.supplier.name}</td>
-                            <td style={{ padding: "10px 16px", textAlign: "center" }}>{po._count.lineItems}</td>
-                            <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
-                              ${po.totalLandedCost.toFixed(2)}
-                            </td>
-                            <td style={{ padding: "10px 16px" }}>
-                              <Badge tone={meta.tone}>{meta.label}</Badge>
-                            </td>
-                            <td style={{ padding: "10px 16px", color: "#6d7175", whiteSpace: "nowrap" }}>
-                              {fmtDate(po.createdAt)}
-                            </td>
+                            {cells}
                           </tr>
                         );
                       })}
@@ -350,11 +351,12 @@ export default function Dashboard() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "24%" }} />
-                      <col style={{ width: "24%" }} />
-                      <col style={{ width: "20%" }} />
-                      <col style={{ width: "16%" }} />
-                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "12%" }} />
                     </colgroup>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #e1e3e5" }}>
@@ -390,6 +392,10 @@ export default function Dashboard() {
                             <td style={{ padding: "10px 16px" }}
                                 onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
                               <Badge tone={meta.tone}>{meta.label}</Badge>
+                            </td>
+                            <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}
+                                onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
+                              ${po.totalLandedCost.toFixed(2)}
                             </td>
                             <td style={{ padding: "10px 16px", textAlign: "right", whiteSpace: "nowrap" }}
                                 onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>

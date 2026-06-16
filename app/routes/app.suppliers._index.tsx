@@ -42,15 +42,27 @@ export default function SuppliersIndex() {
   const totalMappings = suppliers.reduce((s, sup) => s + sup._count.skuMappings, 0);
 
   const th: React.CSSProperties = {
-    padding: "8px 16px", fontSize: 11, fontWeight: 600,
+    padding: "10px 16px", fontSize: 11, fontWeight: 600,
     textTransform: "uppercase", letterSpacing: "0.06em", color: "#6d7175",
     borderBottom: "1px solid #e1e3e5", whiteSpace: "nowrap",
-    background: "#fafbfb", textAlign: "left",
+    background: "#fafbfb", overflow: "hidden", textOverflow: "ellipsis",
   };
   const td: React.CSSProperties = {
-    padding: "11px 16px", borderBottom: "1px solid #f1f2f3",
+    padding: "10px 16px", borderBottom: "1px solid #f1f2f3",
     verticalAlign: "middle", whiteSpace: "nowrap",
+    overflow: "hidden", textOverflow: "ellipsis",
   };
+
+  const SUPPLIER_COLS = [
+    { key: "name",     label: "Name",         align: "left" as const,  width: 200 },
+    { key: "currency", label: "Currency",     align: "left" as const,  width: 96  },
+    { key: "lead",     label: "Lead Time",    align: "left" as const,  width: 120 },
+    { key: "contact",  label: "Contact",      align: "left" as const,  width: 280 },
+    { key: "skus",     label: "SKU Mappings", align: "right" as const, width: 120 },
+    { key: "pos",      label: "POs",          align: "right" as const, width: 72  },
+    { key: "action",   label: "Action",       align: "right" as const, width: 88  },
+  ];
+  const supplierTableMin = SUPPLIER_COLS.reduce((s, c) => s + c.width, 0);
 
   return (
     <Page fullWidth>
@@ -86,22 +98,17 @@ export default function SuppliersIndex() {
         {/* Table card */}
         <Card padding="0">
           <Box paddingBlock="300" paddingInline="400">
-            <InlineStack align="space-between" blockAlign="center" gap="300">
-              <div style={{ flex: 1, maxWidth: 340 }}>
-                <TextField
-                  label="" labelHidden
-                  placeholder="Search suppliers…"
-                  value={search}
-                  onChange={setSearch}
-                  clearButton
-                  onClearButtonClick={() => setSearch("")}
-                  autoComplete="off"
-                />
-              </div>
-              <Button variant="primary" size="slim" onClick={() => navigate("/app/suppliers/new")}>
-                Add Supplier
-              </Button>
-            </InlineStack>
+            <div style={{ maxWidth: 340 }}>
+              <TextField
+                label="" labelHidden
+                placeholder="Search suppliers…"
+                value={search}
+                onChange={setSearch}
+                clearButton
+                onClearButtonClick={() => setSearch("")}
+                autoComplete="off"
+              />
+            </div>
           </Box>
           <Divider />
 
@@ -119,16 +126,17 @@ export default function SuppliersIndex() {
             </Box>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", minWidth: supplierTableMin, borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <colgroup>
+                  {SUPPLIER_COLS.map((col) => (
+                    <col key={col.key} style={{ width: col.width }} />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style={th}>Name</th>
-                    <th style={th}>Currency</th>
-                    <th style={{ ...th, textAlign: "right" }}>Lead Time</th>
-                    <th style={th}>Contact</th>
-                    <th style={{ ...th, textAlign: "right" }}>SKU Mappings</th>
-                    <th style={{ ...th, textAlign: "right" }}>POs</th>
-                    <th style={{ ...th, textAlign: "right" }}>Action</th>
+                    {SUPPLIER_COLS.map((col) => (
+                      <th key={col.key} style={{ ...th, textAlign: col.align }}>{col.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -140,16 +148,16 @@ export default function SuppliersIndex() {
                       onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = "#f6f6f7"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = ""; }}
                     >
-                      <td style={td}>
+                      <td style={{ ...td, textAlign: "left" }}>
                         <Text as="span" variant="bodyMd" fontWeight="semibold">{s.name}</Text>
                       </td>
-                      <td style={td}>
+                      <td style={{ ...td, textAlign: "left" }}>
                         <Badge>{s.currency}</Badge>
                       </td>
-                      <td style={{ ...td, textAlign: "right" }}>
+                      <td style={{ ...td, textAlign: "left", paddingRight: 32 }}>
                         {s.leadTimeDays > 0 ? `${s.leadTimeDays}d` : <span style={{ color: "#8c9196" }}>—</span>}
                       </td>
-                      <td style={{ ...td, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <td style={{ ...td, textAlign: "left", paddingLeft: 24 }}>
                         {s.contactInfo ?? <span style={{ color: "#8c9196" }}>—</span>}
                       </td>
                       <td style={{ ...td, textAlign: "right" }}>{s._count.skuMappings}</td>

@@ -17,12 +17,13 @@ import {
   ChoiceList,
   Divider,
   Badge,
+  Checkbox,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { ImageIcon } from "@shopify/polaris-icons";
 
 import { authenticate } from "../shopify.server";
-import { getProducts, upsertProduct } from "../models/product.server";
+import { deleteProducts, getProducts, upsertProduct } from "../models/product.server";
 
 type ColKey =
   | "image"
@@ -91,6 +92,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  if (intent === "deleteProducts") {
+    const ids = formData.getAll("ids").map(String).filter(Boolean);
+    const result = await deleteProducts(session.shop, ids);
+    return json({ ok: true, deleted: result.count });
+  }
 
   if (intent !== "syncShopifyProducts") return json({ ok: true });
 
@@ -161,18 +168,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Products() {
   const { products } = useLoaderData<typeof loader>();
   const syncFetcher = useFetcher<typeof action>();
+  const deleteFetcher = useFetcher<typeof action>();
   const [colPopoverOpen, setColPopoverOpen] = useState(false);
   const [visibleColKeys, setVisibleColKeys] = useState<ColKey[]>(DEFAULT_VISIBLE);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const isSyncing = syncFetcher.state !== "idle";
+  const isDeleting = deleteFetcher.state !== "idle";
 
   const activeCols = useMemo(
     () => ALL_COLS.filter((col) => visibleColKeys.includes(col.key)),
     [visibleColKeys],
   );
 
+  const tableMinWidth = 48 + activeCols.reduce((s, c) => s + c.width, 0) + 88;
+  const selectedCount = selectedIds.size;
+  const allSelected = products.length > 0 && selectedCount === products.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
   function triggerSync() {
     syncFetcher.submit({ intent: "syncShopifyProducts" }, { method: "post" });
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(products.map((p) => p.id)));
+  }
+
+  function deleteSelected(ids: string[]) {
+    if (!ids.length) return;
+    const fd = new FormData();
+    fd.set("intent", "deleteProducts");
+    ids.forEach((id) => fd.append("ids", id));
+    deleteFetcher.submit(fd, { method: "post" });
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
   }
 
   const emptyStateMarkup = (
@@ -233,6 +274,13 @@ export default function Products() {
             <Text as="p" variant="bodyMd">Synced {String(syncFetcher.data.synced)} Shopify variant{syncFetcher.data.synced === 1 ? "" : "s"}.</Text>
           </Banner>
         )}
+        {deleteFetcher.data?.ok && "deleted" in deleteFetcher.data && Number(deleteFetcher.data.deleted) > 0 && (
+          <Banner tone="success">
+            <Text as="p" variant="bodyMd">
+              Removed {String(deleteFetcher.data.deleted)} product{Number(deleteFetcher.data.deleted) === 1 ? "" : "s"} from ShelfFlow.
+            </Text>
+          </Banner>
+        )}
 
         <Card>
           <InlineStack align="space-between" blockAlign="center" gap="400">
@@ -243,6 +291,18 @@ export default function Products() {
               </Text>
             </BlockStack>
             <InlineStack gap="200">
+              {selectedCount > 0 && (
+                <>
+                  <Text as="span" variant="bodySm" tone="subdued">{selectedCount} selected</Text>
+                  <Button
+                    tone="critical"
+                    loading={isDeleting}
+                    onClick={() => deleteSelected([...selectedIds])}
+                  >
+                    Delete selected
+                  </Button>
+                </>
+              )}
               <Popover
                 active={colPopoverOpen}
                 activator={
@@ -275,21 +335,32 @@ export default function Products() {
         ) : (
           <Card padding="0">
             <div style={{ overflowX: "auto" }}>
-              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 1240, tableLayout: "fixed" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: tableMinWidth, tableLayout: "fixed" }}>
                 <colgroup>
+                  <col style={{ width: 48 }} />
                   {activeCols.map((col) => <col key={col.key} style={{ width: col.width }} />)}
+                  <col style={{ width: 88 }} />
                 </colgroup>
                 <thead>
                   <tr>
+                    <th style={{ ...thStyle, textAlign: "center", paddingLeft: 16 }}>
+                      <Checkbox
+                        label="" labelHidden
+                        checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                        onChange={toggleAll}
+                      />
+                    </th>
                     {activeCols.map((col) => (
                       <th key={col.key} style={{ ...thStyle, textAlign: col.align }}>
                         {col.label}
                       </th>
                     ))}
+                    <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((product) => {
+                    const isSelected = selectedIds.has(product.id);
                     const mappings = product.supplierMappings;
                     const primaryMapping = mappings[0];
                     const supplierSkuLabel = mappings.length
@@ -307,7 +378,17 @@ export default function Products() {
                     const image = product.imageUrl || ImageIcon;
 
                     return (
-                      <tr key={product.id}>
+                      <tr
+                        key={product.id}
+                        style={{ background: isSelected ? "#f3f7ff" : undefined }}
+                      >
+                        <td style={{ ...tdStyle, paddingLeft: 16 }}>
+                          <Checkbox
+                            label="" labelHidden
+                            checked={isSelected}
+                            onChange={() => toggleRow(product.id)}
+                          />
+                        </td>
                         {cell("image", <Thumbnail source={image} alt={product.title} size="small" />)}
                         {cell("product", (
                           <InlineStack gap="300" blockAlign="center" wrap={false}>
@@ -340,6 +421,17 @@ export default function Products() {
                             {mappings.length > 0 ? `${mappings.length} mapped` : "Unmapped"}
                           </Badge>
                         ))}
+                        <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <Button
+                            size="slim"
+                            tone="critical"
+                            variant="plain"
+                            loading={isDeleting}
+                            onClick={() => deleteSelected([product.id])}
+                          >
+                            Delete
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}

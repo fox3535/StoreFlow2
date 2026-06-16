@@ -79,3 +79,23 @@ export async function findProductBySku(shop: string, sku: string) {
 export async function findProductByBarcode(shop: string, barcode: string) {
   return prisma.product.findFirst({ where: { shop, barcode } });
 }
+
+export async function deleteProducts(shop: string, ids: string[]) {
+  if (!ids.length) return { count: 0 };
+
+  return prisma.$transaction(async (tx) => {
+    await tx.purchaseOrderLineItem.updateMany({
+      where: { productId: { in: ids }, purchaseOrder: { shop } },
+      data: { productId: null },
+    });
+    await tx.offerItem.updateMany({
+      where: { productId: { in: ids }, offer: { shop } },
+      data: { productId: null },
+    });
+    await tx.receivingRecord.updateMany({
+      where: { productId: { in: ids }, shop },
+      data: { productId: null },
+    });
+    return tx.product.deleteMany({ where: { shop, id: { in: ids } } });
+  });
+}

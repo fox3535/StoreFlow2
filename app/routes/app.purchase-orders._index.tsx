@@ -44,20 +44,26 @@ type POColKey =
   | "created"  | "expected" | "currency"      | "subtotal" | "landedCost"
   | "progress";
 
-type ColDef = { key: POColKey; label: string; defaultVisible: boolean; numeric?: boolean };
+type ColDef = {
+  key: POColKey;
+  label: string;
+  defaultVisible: boolean;
+  align: "left" | "right" | "center";
+  width: number;
+};
 
 const ALL_PO_COLS: ColDef[] = [
-  { key: "poNumber",      label: "PO #",           defaultVisible: true  },
-  { key: "supplier",      label: "Supplier",        defaultVisible: true  },
-  { key: "status",        label: "Status",          defaultVisible: true  },
-  { key: "invoiceNumber", label: "Invoice #",       defaultVisible: false },
-  { key: "items",         label: "Items",           defaultVisible: true,  numeric: true },
-  { key: "created",       label: "Created",         defaultVisible: true  },
-  { key: "expected",      label: "Expected",        defaultVisible: true  },
-  { key: "currency",      label: "Currency",        defaultVisible: false },
-  { key: "subtotal",      label: "Subtotal",        defaultVisible: false, numeric: true },
-  { key: "landedCost",    label: "Landed Cost",     defaultVisible: true,  numeric: true },
-  { key: "progress",      label: "Progress",        defaultVisible: true  },
+  { key: "poNumber",      label: "PO #",        defaultVisible: true,  align: "left",   width: 148 },
+  { key: "supplier",      label: "Supplier",     defaultVisible: true,  align: "left",   width: 120 },
+  { key: "status",        label: "Status",       defaultVisible: true,  align: "left",   width: 108 },
+  { key: "invoiceNumber", label: "Invoice #",    defaultVisible: false, align: "left",   width: 100 },
+  { key: "items",         label: "Items",        defaultVisible: true,  align: "right",  width: 72  },
+  { key: "created",       label: "Created",      defaultVisible: true,  align: "left",   width: 104 },
+  { key: "expected",      label: "Expected",     defaultVisible: true,  align: "left",   width: 104 },
+  { key: "currency",      label: "Currency",     defaultVisible: false, align: "left",   width: 72  },
+  { key: "subtotal",      label: "Subtotal",     defaultVisible: false, align: "right",  width: 100 },
+  { key: "landedCost",    label: "Landed Cost",  defaultVisible: true,  align: "right",  width: 112 },
+  { key: "progress",      label: "Received",     defaultVisible: true,  align: "right",  width: 128 },
 ];
 
 const ALWAYS_VISIBLE: POColKey[] = ["poNumber", "supplier", "status"];
@@ -278,7 +284,7 @@ export default function PurchaseOrdersIndex() {
 
   // ── Table header cell ────────────────────────────────────────────────────
   const th: React.CSSProperties = {
-    padding: "8px 12px",
+    padding: "10px 16px",
     fontSize: 11,
     fontWeight: 600,
     textTransform: "uppercase",
@@ -289,13 +295,17 @@ export default function PurchaseOrdersIndex() {
     userSelect: "none",
     cursor: "pointer",
     background: "#fafbfb",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   };
   const thStatic: React.CSSProperties = { ...th, cursor: "default" };
   const td: React.CSSProperties = {
-    padding: "10px 12px",
+    padding: "10px 16px",
     borderBottom: "1px solid #f1f2f3",
     verticalAlign: "middle",
     whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   };
 
   const tabItems = TABS.map((t, i) => ({
@@ -305,6 +315,18 @@ export default function PurchaseOrdersIndex() {
   }));
 
   const selectedCount = selectedIds.size;
+
+  const visibleColDefs = ALL_PO_COLS.filter((c) => visibleCols.has(c.key));
+  const tableMinWidth = 52 + visibleColDefs.reduce((s, c) => s + c.width, 0) + 88;
+
+
+  const CHECKBOX_W = 52;
+  const ACTION_W = 88;
+  const totalDataWidth = visibleColDefs.reduce((s, c) => s + c.width, 0);
+
+  function colPct(width: number) {
+    return `${(width / totalDataWidth) * 100}%`;
+  }
 
   return (
     <Page fullWidth>
@@ -384,10 +406,6 @@ export default function PurchaseOrdersIndex() {
                     </BlockStack>
                   </Box>
                 </Popover>
-
-                <Button variant="primary" size="slim" onClick={() => navigate("/app/purchase-orders/new")}>
-                  Create PO
-                </Button>
               </InlineStack>
             </InlineStack>
           </Box>
@@ -409,10 +427,17 @@ export default function PurchaseOrdersIndex() {
             </Box>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
+              <table style={{ width: "100%", minWidth: tableMinWidth, borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: CHECKBOX_W }} />
+                  {visibleColDefs.map((col) => (
+                    <col key={col.key} style={{ width: colPct(col.width) }} />
+                  ))}
+                  <col style={{ width: ACTION_W }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ ...thStatic, width: 40, paddingLeft: 16 }}>
+                    <th style={{ ...thStatic, textAlign: "center" }}>
                       <Checkbox
                         label="" labelHidden
                         checked={allSelected ? true : someSelected ? "indeterminate" : false}
@@ -420,55 +445,19 @@ export default function PurchaseOrdersIndex() {
                       />
                     </th>
 
-                    {visibleCols.has("poNumber") && (
-                      <th style={th} onClick={() => handleSort("poNumber")}>
-                        PO #{sortIndicator("poNumber")}
-                      </th>
-                    )}
-                    {visibleCols.has("supplier") && (
-                      <th style={th} onClick={() => handleSort("supplier")}>
-                        Supplier{sortIndicator("supplier")}
-                      </th>
-                    )}
-                    {visibleCols.has("invoiceNumber") && (
-                      <th style={th}>Invoice #</th>
-                    )}
-                    {visibleCols.has("status") && (
-                      <th style={thStatic}>Status</th>
-                    )}
-                    {visibleCols.has("items") && (
-                      <th style={{ ...th, textAlign: "right" }} onClick={() => handleSort("items")}>
-                        Items{sortIndicator("items")}
-                      </th>
-                    )}
-                    {visibleCols.has("created") && (
-                      <th style={th} onClick={() => handleSort("created")}>
-                        Created{sortIndicator("created")}
-                      </th>
-                    )}
-                    {visibleCols.has("expected") && (
-                      <th style={th} onClick={() => handleSort("expected")}>
-                        Expected{sortIndicator("expected")}
-                      </th>
-                    )}
-                    {visibleCols.has("currency") && (
-                      <th style={thStatic}>Currency</th>
-                    )}
-                    {visibleCols.has("subtotal") && (
-                      <th style={{ ...th, textAlign: "right" }} onClick={() => handleSort("subtotal")}>
-                        Subtotal{sortIndicator("subtotal")}
-                      </th>
-                    )}
-                    {visibleCols.has("landedCost") && (
-                      <th style={{ ...th, textAlign: "right" }} onClick={() => handleSort("landedCost")}>
-                        Landed Cost{sortIndicator("landedCost")}
-                      </th>
-                    )}
-                    {visibleCols.has("progress") && (
-                      <th style={{ ...th, minWidth: 140 }} onClick={() => handleSort("progress")}>
-                        Received{sortIndicator("progress")}
-                      </th>
-                    )}
+                    {visibleColDefs.map((col) => {
+                      const sortable = ["poNumber", "supplier", "items", "created", "expected", "subtotal", "landedCost", "progress"].includes(col.key);
+                      const base = sortable ? th : thStatic;
+                      return (
+                        <th
+                          key={col.key}
+                          style={{ ...base, textAlign: col.align }}
+                          onClick={sortable ? () => handleSort(col.key) : undefined}
+                        >
+                          {col.label}{sortable ? sortIndicator(col.key) : ""}
+                        </th>
+                      );
+                    })}
                     <th style={{ ...thStatic, textAlign: "right" }}>Action</th>
                   </tr>
                 </thead>
@@ -476,9 +465,41 @@ export default function PurchaseOrdersIndex() {
                   {filtered.map((po) => {
                     const isSelected = selectedIds.has(po.id);
                     const meta = STATUS_META[po.status] ?? { tone: undefined, label: po.status };
-                    const needsReceipt =
-                      ["open", "in_transit", "partially_received"].includes(po.status) &&
-                      po.totalOrdered - po.totalReceived > 0;
+
+                    function renderCell(key: POColKey): React.ReactNode {
+                      switch (key) {
+                        case "poNumber":
+                          return <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>;
+                        case "supplier":
+                          return po.supplier.name;
+                        case "invoiceNumber":
+                          return po.invoiceNumber ?? <span style={{ color: "#8c9196" }}>—</span>;
+                        case "status":
+                          return <Badge tone={meta.tone}>{meta.label}</Badge>;
+                        case "items":
+                          return po._count.lineItems;
+                        case "created":
+                          return fmt(po.createdAt);
+                        case "expected":
+                          return po.expectedDate
+                            ? fmt(po.expectedDate)
+                            : <span style={{ color: "#8c9196" }}>—</span>;
+                        case "currency":
+                          return po.currency;
+                        case "subtotal":
+                          return `$${po.subtotal.toFixed(2)}`;
+                        case "landedCost":
+                          return `$${po.totalLandedCost.toFixed(2)}`;
+                        case "progress":
+                          return (
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                              <ProgressBar received={po.totalReceived} ordered={po.totalOrdered} />
+                            </div>
+                          );
+                        default:
+                          return null;
+                      }
+                    }
 
                     return (
                       <tr
@@ -495,69 +516,26 @@ export default function PurchaseOrdersIndex() {
                           (e.currentTarget as HTMLTableRowElement).style.background = isSelected ? "#f3f7ff" : "";
                         }}
                       >
-                        <td style={{ ...td, paddingLeft: 16, width: 40 }} onClick={(e) => e.stopPropagation()}>
+                        <td style={{ ...td, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                           <Checkbox label="" labelHidden checked={isSelected} onChange={() => toggleRow(po.id)} />
                         </td>
 
-                        {visibleCols.has("poNumber") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            <Text as="span" variant="bodyMd" fontWeight="semibold">{po.poNumber}</Text>
+                        {visibleColDefs.map((col) => (
+                          <td
+                            key={col.key}
+                            style={{
+                              ...td,
+                              textAlign: col.align,
+                              fontWeight: col.key === "landedCost" ? 600 : undefined,
+                            }}
+                            onClick={() => navigate(`/app/purchase-orders/${po.id}`)}
+                          >
+                            {renderCell(col.key)}
                           </td>
-                        )}
-                        {visibleCols.has("supplier") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {po.supplier.name}
-                          </td>
-                        )}
-                        {visibleCols.has("invoiceNumber") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {po.invoiceNumber ?? <span style={{ color: "#8c9196" }}>—</span>}
-                          </td>
-                        )}
-                        {visibleCols.has("status") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            <Badge tone={meta.tone}>{meta.label}</Badge>
-                          </td>
-                        )}
-                        {visibleCols.has("items") && (
-                          <td style={{ ...td, textAlign: "right" }} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {po._count.lineItems}
-                          </td>
-                        )}
-                        {visibleCols.has("created") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {fmt(po.createdAt)}
-                          </td>
-                        )}
-                        {visibleCols.has("expected") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {po.expectedDate
-                              ? <Text as="span" variant="bodyMd">{fmt(po.expectedDate)}</Text>
-                              : <span style={{ color: "#8c9196" }}>—</span>}
-                          </td>
-                        )}
-                        {visibleCols.has("currency") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            {po.currency}
-                          </td>
-                        )}
-                        {visibleCols.has("subtotal") && (
-                          <td style={{ ...td, textAlign: "right" }} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            ${po.subtotal.toFixed(2)}
-                          </td>
-                        )}
-                        {visibleCols.has("landedCost") && (
-                          <td style={{ ...td, textAlign: "right", fontWeight: 600 }} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            ${po.totalLandedCost.toFixed(2)}
-                          </td>
-                        )}
-                        {visibleCols.has("progress") && (
-                          <td style={td} onClick={() => navigate(`/app/purchase-orders/${po.id}`)}>
-                            <ProgressBar received={po.totalReceived} ordered={po.totalOrdered} />
-                          </td>
-                        )}
+                        ))}
                         <td style={{ ...td, textAlign: "right" }}>
-                          {needsReceipt ? (
+                          {(["open", "in_transit", "partially_received"].includes(po.status) &&
+                            po.totalOrdered - po.totalReceived > 0) ? (
                             <Tooltip content="Receive stock for this PO">
                               <Button
                                 size="slim"
