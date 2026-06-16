@@ -61,6 +61,7 @@ model Product {
 
   supplierMappings SupplierSkuMapping[]
   poLineItems      PurchaseOrderLineItem[]
+  offerItems       OfferItem[]
   receivingRecords ReceivingRecord[]
 
   @@unique([shop, shopifyVariantId])
@@ -145,7 +146,8 @@ model OfferItem {
   qtyFulfilled Int     @default(0)
   unitCost     Float   @default(0)
 
-  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  offer   Offer    @relation(fields: [offerId],   references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
 }
 
 // ---------------------------------------------------------------------------

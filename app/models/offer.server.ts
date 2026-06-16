@@ -5,6 +5,7 @@ export type OfferItemInput = {
   supplierSku?: string;
   qtyReserved: number;
   unitCost: number;
+  productId?: string | null;
 };
 
 export type OfferInput = {
@@ -32,7 +33,13 @@ export async function getOffer(shop: string, id: string) {
     where: { shop, id },
     include: {
       supplier: true,
-      items: true,
+      items: {
+        include: {
+          product: {
+            select: { id: true, title: true, imageUrl: true, sku: true, barcode: true, currentPrice: true },
+          },
+        },
+      },
       purchaseOrders: {
         select: {
           id: true,
@@ -67,7 +74,8 @@ export async function createOffer(shop: string, data: OfferInput) {
           description: item.description,
           supplierSku: item.supplierSku ?? null,
           qtyReserved: item.qtyReserved,
-          unitCost: item.unitCost,
+          unitCost:    item.unitCost,
+          productId:   item.productId ?? null,
         })),
       },
     },
@@ -104,6 +112,7 @@ export async function convertOfferToPO(shop: string, offerId: string) {
       supplierSku: item.supplierSku ?? undefined,
       qtyOrdered:  item.qtyReserved,
       unitCost:    item.unitCost,
+      productId:   item.productId ?? null,
     })),
   });
 

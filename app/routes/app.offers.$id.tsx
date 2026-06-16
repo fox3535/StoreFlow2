@@ -17,6 +17,7 @@ import {
   InlineGrid,
   ProgressBar,
 } from "@shopify/polaris";
+import React from "react";
 import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -113,13 +114,26 @@ export default function OfferDetail() {
     submit(fd, { method: "post" });
   }
 
-  const itemRows = offer.items.map((item) => [
-    item.description ?? "—",
-    item.supplierSku ?? "—",
-    String(item.qtyReserved),
-    `$${item.unitCost.toFixed(2)}`,
-    `$${(item.qtyReserved * item.unitCost).toFixed(2)}`,
-  ]);
+  // ── Offer items table (image-aware, read-only) ───────────────────────────
+  const thStyle: React.CSSProperties = {
+    padding: "6px 8px",
+    background: "#f6f6f7",
+    borderBottom: "2px solid #e1e3e5",
+    fontSize: "11px",
+    fontWeight: 600,
+    color: "#6d7175",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    whiteSpace: "nowrap",
+    userSelect: "none",
+  };
+  const tdStyle: React.CSSProperties = {
+    padding: "5px 8px",
+    borderBottom: "1px solid #e1e3e5",
+    verticalAlign: "middle",
+    fontSize: "13px",
+    color: "#202223",
+  };
 
   const poRows = offer.purchaseOrders.map((po) => {
     const poOrdered  = po.lineItems.reduce((s, l) => s + l.qtyOrdered,  0);
@@ -236,24 +250,82 @@ export default function OfferDetail() {
               </Card>
 
               {/* Reserved items */}
-              <Card>
-                <BlockStack gap="400">
+              <Card padding="0">
+                <Box paddingBlock="300" paddingInline="400">
                   <Text as="h2" variant="headingMd">Reserved Items</Text>
-                  <Divider />
-                  {offer.items.length === 0 ? (
-                    <Box paddingBlock="400">
-                      <Text as="p" variant="bodyMd" tone="subdued" alignment="center">No items.</Text>
-                    </Box>
-                  ) : (
-                    <DataTable
-                      columnContentTypes={["text", "text", "numeric", "numeric", "numeric"]}
-                      headings={["Description", "Supplier Code/SKU", "Qty Reserved", "Unit Cost", "Est. Total"]}
-                      rows={itemRows}
-                      totalsName={{ singular: "Total", plural: "Totals" }}
-                      totals={["", "", String(totalReserved), "", `$${offer.totalEstimatedCost.toFixed(2)}`]}
-                    />
-                  )}
-                </BlockStack>
+                </Box>
+                <Divider />
+                {offer.items.length === 0 ? (
+                  <Box paddingBlock="600">
+                    <Text as="p" variant="bodyMd" tone="subdued" alignment="center">No items.</Text>
+                  </Box>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+                      <colgroup>
+                        <col style={{ width: 48 }} />
+                        <col style={{ width: 220 }} />
+                        <col style={{ width: 140 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 96 }} />
+                        <col style={{ width: 96 }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th style={{ ...thStyle, textAlign: "center" }}></th>
+                          <th style={{ ...thStyle, textAlign: "left" }}>Product</th>
+                          <th style={{ ...thStyle, textAlign: "left" }}>Supplier Code / SKU</th>
+                          <th style={{ ...thStyle, textAlign: "right" }}>Qty Reserved</th>
+                          <th style={{ ...thStyle, textAlign: "right" }}>Unit Cost</th>
+                          <th style={{ ...thStyle, textAlign: "right" }}>Est. Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {offer.items.map((item) => {
+                          const prod = (item as any).product as { title: string; imageUrl: string | null; sku: string | null; barcode: string | null } | null;
+                          const imageUrl    = prod?.imageUrl ?? null;
+                          const displayName = item.description ?? prod?.title ?? "—";
+                          const subtitle    = prod?.title && prod.title !== displayName ? prod.title : (prod?.sku ?? null);
+                          const lineTotal   = item.qtyReserved * item.unitCost;
+
+                          return (
+                            <tr key={item.id} style={{ background: "white" }}>
+                              <td style={{ ...tdStyle, textAlign: "center" }}>
+                                <div style={{ width: 34, height: 34, borderRadius: 4, background: "#f6f6f7", border: imageUrl ? "none" : "1px dashed #d1d5db", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                                  {imageUrl
+                                    ? <img src={imageUrl} alt={displayName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    : <span style={{ fontSize: 8, color: "#c9cccf" }}>IMG</span>
+                                  }
+                                </div>
+                              </td>
+                              <td style={{ ...tdStyle }}>
+                                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 210 }}>{displayName}</div>
+                                {subtitle && (
+                                  <div style={{ fontSize: 11, color: "#6d7175", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 210, marginTop: 2 }}>{subtitle}</div>
+                                )}
+                              </td>
+                              <td style={{ ...tdStyle, color: item.supplierSku ? "#202223" : "#6d7175" }}>
+                                {item.supplierSku ?? "—"}
+                              </td>
+                              <td style={{ ...tdStyle, textAlign: "right" }}>{item.qtyReserved}</td>
+                              <td style={{ ...tdStyle, textAlign: "right" }}>${item.unitCost.toFixed(2)}</td>
+                              <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>${lineTotal.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                        {/* Totals row */}
+                        <tr style={{ background: "#f6f6f7" }}>
+                          <td style={{ ...tdStyle }}></td>
+                          <td style={{ ...tdStyle, fontWeight: 600, fontSize: 12, color: "#6d7175" }}>TOTAL</td>
+                          <td style={{ ...tdStyle }}></td>
+                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{totalReserved}</td>
+                          <td style={{ ...tdStyle }}></td>
+                          <td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${offer.totalEstimatedCost.toFixed(2)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </Card>
 
               {/* Linked purchase orders */}

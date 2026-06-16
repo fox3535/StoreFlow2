@@ -46,7 +46,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const errors: Record<string, string> = {};
   if (!supplierId) errors.supplierId = "Supplier is required.";
 
-  let items: { description: string; supplierSku: string; qtyReserved: number; unitCost: number }[] = [];
+  let items: { description: string; supplierSku: string; qtyReserved: number; unitCost: number; productId?: string | null }[] = [];
   try {
     items = JSON.parse(itemsJson || "[]");
   } catch {
@@ -134,7 +134,8 @@ export default function NewOffer() {
       description: item.description,
       supplierSku: item.supplierSku,
       qtyReserved: parseInt(item.qtyOrdered) || 0,
-      unitCost: parseFloat(item.unitCost) || 0,
+      unitCost:    parseFloat(item.unitCost) || 0,
+      productId:   item.pendingProductId ?? null,
     }));
 
     const formData = new FormData();

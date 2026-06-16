@@ -1,3 +1,4 @@
+import React from "react";
 import { TextField, Text, Button, InlineStack } from "@shopify/polaris";
 
 export type LineItem = {
@@ -13,12 +14,27 @@ export type LineItem = {
 
 type Props = {
   items: LineItem[];
-  onChange: (id: string, field: keyof Pick<LineItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">, value: string) => void;
+  onChange: (
+    id: string,
+    field: keyof Pick<LineItem, "description" | "supplierSku" | "qtyOrdered" | "unitCost">,
+    value: string,
+  ) => void;
   onRemove: (id: string) => void;
 };
 
-// Defined outside parent component so React tracks identity by key, not position.
-// This prevents focus loss on every keystroke.
+const COLS = "48px 2fr 1.4fr 76px 108px 90px 72px";
+
+const thStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "#6d7175",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
+  userSelect: "none",
+};
+
+// Defined at module level — prevents React from remounting on every keystroke.
 function LineItemRow({
   item,
   onChange,
@@ -30,17 +46,17 @@ function LineItemRow({
   onRemove: Props["onRemove"];
   isOnly: boolean;
 }) {
-  const total = (parseFloat(item.qtyOrdered) || 0) * (parseFloat(item.unitCost) || 0);
-  const hasImage = Boolean(item.imageUrl);
+  const total       = (parseFloat(item.qtyOrdered) || 0) * (parseFloat(item.unitCost) || 0);
+  const hasImage    = Boolean(item.imageUrl);
   const displayTitle = item.pickedTitle ?? null;
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "40px 2fr 1.2fr 80px 110px 80px 70px",
+        gridTemplateColumns: COLS,
         gap: "8px",
-        alignItems: "center",
+        alignItems: "start",
         padding: "8px 0",
         borderBottom: "1px solid #e1e3e5",
       }}
@@ -48,8 +64,8 @@ function LineItemRow({
       {/* Thumbnail */}
       <div
         style={{
-          width: 36,
-          height: 36,
+          width: 38,
+          height: 38,
           borderRadius: 4,
           background: "#f6f6f7",
           border: hasImage ? "none" : "1px dashed #d1d5db",
@@ -58,6 +74,7 @@ function LineItemRow({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          marginTop: 4,
         }}
       >
         {hasImage ? (
@@ -71,18 +88,27 @@ function LineItemRow({
         )}
       </div>
 
-      {/* Description — with optional product title subtitle */}
+      {/* Description — with optional product-title subtitle */}
       <div>
         <TextField
           label=""
           labelHidden
-          placeholder="Description / SKU"
+          placeholder="Search or type product name…"
           value={item.description}
           onChange={(v) => onChange(item.id, "description", v)}
           autoComplete="off"
         />
         {displayTitle && displayTitle !== item.description && (
-          <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "#6d7175",
+              marginTop: 3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {displayTitle}
           </div>
         )}
@@ -115,17 +141,23 @@ function LineItemRow({
         onChange={(v) => onChange(item.id, "unitCost", v)}
         autoComplete="off"
       />
-      <Text as="span" variant="bodyMd">
+
+      {/* Row total */}
+      <div style={{ paddingTop: 7, fontSize: 13, color: "#202223", fontWeight: 500, textAlign: "right" }}>
         ${total.toFixed(2)}
-      </Text>
-      <Button
-        variant="plain"
-        tone="critical"
-        onClick={() => onRemove(item.id)}
-        disabled={isOnly}
-      >
-        Remove
-      </Button>
+      </div>
+
+      {/* Remove */}
+      <div style={{ paddingTop: 4 }}>
+        <Button
+          variant="plain"
+          tone="critical"
+          onClick={() => onRemove(item.id)}
+          disabled={isOnly}
+        >
+          Remove
+        </Button>
+      </div>
     </div>
   );
 }
@@ -133,21 +165,22 @@ function LineItemRow({
 export function LineItemsTable({ items, onChange, onRemove }: Props) {
   return (
     <div>
-      {/* Header */}
+      {/* Header row */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "40px 2fr 1.2fr 80px 110px 80px 70px",
+          gridTemplateColumns: COLS,
           gap: "8px",
           padding: "0 0 8px 0",
           borderBottom: "2px solid #e1e3e5",
+          alignItems: "center",
         }}
       >
-        {["", "Description / SKU", "Supplier SKU", "Qty", "Unit Cost", "Total", ""].map(
+        {(["", "Description / Product", "Supplier SKU", "Qty", "Unit Cost", "Row Total", ""] as const).map(
           (h, i) => (
-            <Text key={i} as="span" variant="bodySm" fontWeight="semibold" tone="subdued">
+            <span key={i} style={{ ...thStyle, textAlign: i >= 3 && i <= 5 ? "right" : "left" }}>
               {h}
-            </Text>
+            </span>
           ),
         )}
       </div>

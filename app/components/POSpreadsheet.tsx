@@ -20,22 +20,22 @@ export type ColDef = {
 };
 
 export const ALL_COLS: ColDef[] = [
-  { key: "image",       label: "",                   width: 44,  align: "center", defaultVisible: true,  alwaysVisible: true  },
-  { key: "description", label: "Product",             width: 200, align: "left",   defaultVisible: true,  alwaysVisible: true  },
-  { key: "supplierSku", label: "Supplier Code / SKU", width: 130, align: "left",   defaultVisible: true,  alwaysVisible: false },
-  { key: "sku",         label: "SKU",                 width: 100, align: "left",   defaultVisible: true,  alwaysVisible: false },
-  { key: "barcode",     label: "Barcode",             width: 115, align: "left",   defaultVisible: false, alwaysVisible: false },
-  { key: "retail",      label: "Retail",              width: 82,  align: "right",  defaultVisible: true,  alwaysVisible: false },
-  { key: "cost",        label: "Cost",                width: 90,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
-  { key: "landed",      label: "Landed",              width: 90,  align: "right",  defaultVisible: true,  alwaysVisible: false },
-  { key: "markup",      label: "Markup",              width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: false },
-  { key: "margin",      label: "Margin",              width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: false },
-  { key: "available",   label: "Available",           width: 75,  align: "right",  defaultVisible: true,  alwaysVisible: false },
-  { key: "onOrder",     label: "On Order",            width: 72,  align: "right",  defaultVisible: false, alwaysVisible: false },
-  { key: "qty",         label: "Qty",                 width: 72,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
-  { key: "qtyReceived", label: "Recv",                width: 60,  align: "right",  defaultVisible: false, alwaysVisible: false },
-  { key: "qtyRejected", label: "Rej",                 width: 55,  align: "right",  defaultVisible: false, alwaysVisible: false },
-  { key: "lineTotal",   label: "Total",               width: 90,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "image",       label: "",                   width: 48,  align: "center", defaultVisible: true,  alwaysVisible: true  },
+  { key: "description", label: "Product",             width: 224, align: "left",   defaultVisible: true,  alwaysVisible: true  },
+  { key: "supplierSku", label: "Supplier Code / SKU", width: 134, align: "left",   defaultVisible: true,  alwaysVisible: false },
+  { key: "sku",         label: "SKU",                 width: 104, align: "left",   defaultVisible: true,  alwaysVisible: false },
+  { key: "barcode",     label: "Barcode",             width: 120, align: "left",   defaultVisible: false, alwaysVisible: false },
+  { key: "retail",      label: "Retail",              width: 84,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "cost",        label: "Cost",                width: 92,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
+  { key: "landed",      label: "Landed/unit",         width: 94,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "markup",      label: "Markup",              width: 74,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "margin",      label: "Margin",              width: 74,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "available",   label: "In Stock",            width: 76,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "onOrder",     label: "On Order",            width: 76,  align: "right",  defaultVisible: true,  alwaysVisible: false },
+  { key: "qty",         label: "Qty",                 width: 76,  align: "right",  defaultVisible: true,  alwaysVisible: true  },
+  { key: "qtyReceived", label: "Recv",                width: 62,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "qtyRejected", label: "Rej",                 width: 58,  align: "right",  defaultVisible: false, alwaysVisible: false },
+  { key: "lineTotal",   label: "Row Total",           width: 92,  align: "right",  defaultVisible: true,  alwaysVisible: false },
 ];
 
 export const DEFAULT_VISIBLE = new Set<ColKey>(
@@ -214,7 +214,7 @@ function POLineItemRow({
     : null;
 
   const td: React.CSSProperties = {
-    padding: "3px 6px",
+    padding: "5px 6px",
     borderBottom: "1px solid #e1e3e5",
     verticalAlign: "middle",
   };
@@ -233,7 +233,7 @@ function POLineItemRow({
     <tr style={{ background: "white" }}>
       {/* Image */}
       {cell("image",
-        <div style={{ width: 34, height: 34, background: "#f6f6f7", borderRadius: 4, border: imageUrl ? "none" : "1px dashed #d1d5db", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, background: "#f6f6f7", borderRadius: 4, border: imageUrl ? "none" : "1px dashed #d1d5db", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
           {imageUrl
             ? <img src={imageUrl} alt={displayTitle ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 3 }} />
             : <span style={{ fontSize: 9, color: "#c9cccf", lineHeight: 1 }}>IMG</span>
@@ -247,14 +247,16 @@ function POLineItemRow({
           <TI
             value={item.description}
             onChange={(v) => onChange(item.id, "description", v)}
-            placeholder={displayTitle ?? "Product name / SKU…"}
+            placeholder={displayTitle ?? "Search or type product name…"}
             disabled={disabled}
           />
-          {displayTitle && displayTitle !== item.description && (
-            <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 195 }}>
-              {displayTitle}
-            </div>
-          )}
+          {/* Subtitle: show linked product name (if description differs) or SKU */}
+          {(displayTitle && displayTitle !== item.description)
+            ? <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 210 }}>{displayTitle}</div>
+            : displaySku
+              ? <div style={{ fontSize: 11, color: "#6d7175", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 210 }}>SKU: {displaySku}</div>
+              : null
+          }
         </div>
       )}
 
@@ -380,7 +382,7 @@ export function POSpreadsheet({
   const activeCols = ALL_COLS.filter((c) => visibleCols.has(c.key));
 
   const thStyle: React.CSSProperties = {
-    padding: "7px 6px",
+    padding: "8px 6px",
     background: "#f6f6f7",
     borderBottom: "2px solid #e1e3e5",
     fontSize: "11px",
@@ -390,6 +392,9 @@ export function POSpreadsheet({
     userSelect: "none",
     textTransform: "uppercase",
     letterSpacing: "0.04em",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
   };
 
   return (
