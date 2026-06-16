@@ -18,6 +18,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { getPurchaseOrder, receivePurchaseOrder } from "../models/purchase-order.server";
+import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 
 type ReceiveDraft = Record<string, { receive: string; reject: string; backorder: string }>;
 
@@ -179,6 +180,7 @@ export default function PurchaseOrderReceiving() {
       </TitleBar>
 
       <BlockStack gap="400">
+        <LocalInventoryNotice />
         {actionData && !actionData.ok && (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">
@@ -188,7 +190,7 @@ export default function PurchaseOrderReceiving() {
         )}
         {actionData?.ok && (
           <Banner tone="success">
-            <Text as="p" variant="bodyMd">Receiving saved. Inventory and cost basis were updated.</Text>
+            <Text as="p" variant="bodyMd">Receiving saved. ShelfFlow local stock and cost basis were updated.</Text>
           </Banner>
         )}
         {isClosed && (

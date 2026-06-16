@@ -14,6 +14,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -122,6 +123,7 @@ export default function Receiving() {
     <Page fullWidth>
       <TitleBar title="Receiving" />
       <BlockStack gap="400">
+        <LocalInventoryNotice />
         <Card>
           <BlockStack gap="100">
             <Text as="h1" variant="headingLg">Receiving Queue</Text>

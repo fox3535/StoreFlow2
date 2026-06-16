@@ -21,6 +21,7 @@ import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect } from "react";
 
 import { authenticate } from "../shopify.server";
+import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 import { getSettings, saveSettings } from "../models/settings.server";
 
 // ---------------------------------------------------------------------------
@@ -58,9 +59,9 @@ const CURRENCY_OPTIONS = [
 ];
 
 const RECEIVING_CHOICES = [
-  { label: "Restock — add quantity to Shopify inventory", value: "restock" },
-  { label: "Credit — log receipt without updating stock",  value: "credit"  },
-  { label: "Ignore — receive but take no action",          value: "ignore"  },
+  { label: "Restock — update ShelfFlow local quantity (Shopify unchanged in V1)", value: "restock" },
+  { label: "Credit — log receipt without updating local stock", value: "credit" },
+  { label: "Ignore — receive but take no stock action", value: "ignore" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -153,10 +154,12 @@ export default function Settings() {
                 onChange={setReceivingDefault}
               />
               <Text as="p" variant="bodySm" tone="subdued">
-                This default can be overridden per receiving session on any individual line item.
+                Receiving updates ShelfFlow local stock and average costs only. Shopify inventory is not modified in V1.
               </Text>
             </BlockStack>
           </Card>
+
+          <LocalInventoryNotice />
 
           {/* Shopify sync */}
           <Card>

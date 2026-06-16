@@ -36,6 +36,7 @@ model Settings {
   defaultCurrency  String   @default("USD")
   receivingDefault String   @default("restock")
   syncMode         String   @default("manual")
+  uiPreferences    Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

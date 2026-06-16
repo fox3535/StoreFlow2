@@ -24,6 +24,8 @@ import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getPurchaseOrders, updatePurchaseOrderStatus } from "../models/purchase-order.server";
 import { DashKpiGrid, DashKpiStyles, DashStatCard } from "../components/DashStatCard";
+import { getSettings } from "../models/settings.server";
+import { usePersistedColumns } from "../hooks/usePersistedColumns";
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -93,8 +95,11 @@ function fmt(d: string | Date | null) {
 // ---------------------------------------------------------------------------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const pos = await getPurchaseOrders(session.shop);
-  return json({ pos });
+  const [pos, settings] = await Promise.all([
+    getPurchaseOrders(session.shop),
+    getSettings(session.shop),
+  ]);
+  return json({ pos, shop: session.shop, uiPreferences: settings.uiPreferences });
 };
 
 // ---------------------------------------------------------------------------
@@ -137,7 +142,7 @@ function ProgressBar({ received, ordered }: { received: number; ordered: number 
 // Main component
 // ---------------------------------------------------------------------------
 export default function PurchaseOrdersIndex() {
-  const { pos } = useLoaderData<typeof loader>();
+  const { pos, shop, uiPreferences } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit   = useSubmit();
 
@@ -145,7 +150,14 @@ export default function PurchaseOrdersIndex() {
   const [tabIndex,       setTabIndex]       = useState(0);
   const [search,         setSearch]         = useState("");
   const [colPopover,     setColPopover]     = useState(false);
-  const [visibleCols,    setVisibleCols]    = useState<Set<POColKey>>(DEFAULT_VISIBLE);
+  const defaultColKeys = Array.from(DEFAULT_VISIBLE) as POColKey[];
+  const [persistedColKeys, setPersistedColKeys] = usePersistedColumns<POColKey>(
+    shop,
+    "poColumns",
+    defaultColKeys,
+    uiPreferences.poColumns as POColKey[] | undefined,
+  );
+  const visibleCols = useMemo(() => new Set(persistedColKeys), [persistedColKeys]);
   const [selectedIds,    setSelectedIds]    = useState<Set<string>>(new Set());
   const [sortKey,        setSortKey]        = useState<POColKey>("created");
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("desc");
@@ -217,7 +229,7 @@ export default function PurchaseOrdersIndex() {
   );
 
   function handleColChange(selected: string[]) {
-    setVisibleCols(new Set([...ALWAYS_VISIBLE, ...(selected as POColKey[])]));
+    setPersistedColKeys([...ALWAYS_VISIBLE, ...(selected as POColKey[])]);
   }
 
   // ── Sort ──────────────────────────────────────────────────────────────────

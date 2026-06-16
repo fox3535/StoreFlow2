@@ -15,15 +15,20 @@ import {
   Box,
   Popover,
   ChoiceList,
-  Divider,
   Badge,
   Checkbox,
+  TextField,
+  Modal,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { ImageIcon } from "@shopify/polaris-icons";
 
 import { authenticate } from "../shopify.server";
-import { deleteProducts, getProducts, upsertProduct } from "../models/product.server";
+import { deleteProducts, getProducts } from "../models/product.server";
+import { syncShopifyProducts } from "../models/shopify-product-sync.server";
+import { getSettings } from "../models/settings.server";
+import { usePersistedColumns } from "../hooks/usePersistedColumns";
+import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 
 type ColKey =
   | "image"
@@ -54,38 +59,13 @@ const ALL_COLS: { key: ColKey; label: string; defaultVisible: boolean; align: "l
 
 const DEFAULT_VISIBLE = ALL_COLS.filter((col) => col.defaultVisible).map((col) => col.key);
 
-type ShopifySyncPayload = {
-  errors?: { message?: string }[];
-  data?: {
-    products?: {
-      nodes?: {
-        id: string;
-        title: string;
-        featuredMedia?: { preview?: { image?: { url?: string | null } | null } | null } | null;
-        variants?: {
-          nodes?: {
-            id: string;
-            title?: string | null;
-            sku?: string | null;
-            barcode?: string | null;
-            price?: string | null;
-            inventoryQuantity?: number | null;
-            image?: { url?: string | null } | null;
-          }[];
-        } | null;
-      }[];
-    };
-  };
-};
-
-function stripGid(value: string, type: "Product" | "ProductVariant") {
-  return value.replace(`gid://shopify/${type}/`, "");
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const products = await getProducts(session.shop);
-  return { products };
+  const [products, settings] = await Promise.all([
+    getProducts(session.shop),
+    getSettings(session.shop),
+  ]);
+  return { products, shop: session.shop, uiPreferences: settings.uiPreferences };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -101,80 +81,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent !== "syncShopifyProducts") return json({ ok: true });
 
-  const response = await admin.graphql(
-    `#graphql
-      query ShelfFlowProductSync($first: Int!) {
-        products(first: $first) {
-          nodes {
-            id
-            title
-            featuredMedia {
-              preview {
-                image {
-                  url
-                }
-              }
-            }
-            variants(first: 100) {
-              nodes {
-                id
-                title
-                sku
-                barcode
-                price
-                inventoryQuantity
-                image {
-                  url
-                }
-              }
-            }
-          }
-        }
-      }
-    `,
-    { variables: { first: 100 } },
-  );
-
-  const payload = await response.json() as ShopifySyncPayload;
-  if (payload.errors?.length) {
-    return json({ ok: false, error: payload.errors[0]?.message ?? "Shopify sync failed." }, { status: 500 });
+  try {
+    const { synced } = await syncShopifyProducts(admin, session.shop);
+    return json({ ok: true, synced });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Shopify sync failed.";
+    return json({ ok: false, error: message }, { status: 500 });
   }
-
-  let synced = 0;
-  for (const product of payload.data?.products?.nodes ?? []) {
-    const productImage = product.featuredMedia?.preview?.image?.url ?? null;
-    for (const variant of product.variants?.nodes ?? []) {
-      const variantTitle = variant.title && variant.title !== "Default Title"
-        ? `${product.title} - ${variant.title}`
-        : product.title;
-
-      await upsertProduct(session.shop, {
-        shopifyProductId: stripGid(product.id, "Product"),
-        shopifyVariantId: stripGid(variant.id, "ProductVariant"),
-        title: variantTitle,
-        sku: variant.sku ?? null,
-        barcode: variant.barcode ?? null,
-        imageUrl: variant.image?.url ?? productImage,
-        currentPrice: parseFloat(variant.price ?? "0") || 0,
-        currentQuantity: variant.inventoryQuantity ?? 0,
-      });
-      synced += 1;
-    }
-  }
-
-  return json({ ok: true, synced });
 };
 
 export default function Products() {
-  const { products } = useLoaderData<typeof loader>();
+  const { products, shop, uiPreferences } = useLoaderData<typeof loader>();
   const syncFetcher = useFetcher<typeof action>();
   const deleteFetcher = useFetcher<typeof action>();
   const [colPopoverOpen, setColPopoverOpen] = useState(false);
-  const [visibleColKeys, setVisibleColKeys] = useState<ColKey[]>(DEFAULT_VISIBLE);
+  const [visibleColKeys, setVisibleColKeys] = usePersistedColumns<ColKey>(
+    shop,
+    "productColumns",
+    DEFAULT_VISIBLE,
+    uiPreferences.productColumns as ColKey[] | undefined,
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
 
   const isSyncing = syncFetcher.state !== "idle";
   const isDeleting = deleteFetcher.state !== "idle";
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) =>
+      p.title.toLowerCase().includes(q)
+      || (p.sku ?? "").toLowerCase().includes(q)
+      || (p.barcode ?? "").toLowerCase().includes(q)
+      || p.supplierMappings.some((m) =>
+        m.supplierSku.toLowerCase().includes(q) || m.supplier.name.toLowerCase().includes(q),
+      ),
+    );
+  }, [products, search]);
 
   const activeCols = useMemo(
     () => ALL_COLS.filter((col) => visibleColKeys.includes(col.key)),
@@ -183,7 +129,7 @@ export default function Products() {
 
   const tableMinWidth = 48 + activeCols.reduce((s, c) => s + c.width, 0) + 88;
   const selectedCount = selectedIds.size;
-  const allSelected = products.length > 0 && selectedCount === products.length;
+  const allSelected = filteredProducts.length > 0 && selectedCount === filteredProducts.length;
   const someSelected = selectedCount > 0 && !allSelected;
 
   function triggerSync() {
@@ -200,10 +146,17 @@ export default function Products() {
   }
 
   function toggleAll() {
-    setSelectedIds(allSelected ? new Set() : new Set(products.map((p) => p.id)));
+    setSelectedIds(allSelected ? new Set() : new Set(filteredProducts.map((p) => p.id)));
   }
 
-  function deleteSelected(ids: string[]) {
+  function requestDelete(ids: string[]) {
+    if (!ids.length) return;
+    setPendingDeleteIds(ids);
+    setDeleteModalOpen(true);
+  }
+
+  function confirmDelete() {
+    const ids = pendingDeleteIds;
     if (!ids.length) return;
     const fd = new FormData();
     fd.set("intent", "deleteProducts");
@@ -214,6 +167,8 @@ export default function Products() {
       ids.forEach((id) => next.delete(id));
       return next;
     });
+    setDeleteModalOpen(false);
+    setPendingDeleteIds([]);
   }
 
   const emptyStateMarkup = (
@@ -229,23 +184,20 @@ export default function Products() {
   );
 
   const thStyle: React.CSSProperties = {
-    padding: "8px 8px",
-    background: "#f6f6f7",
-    borderBottom: "2px solid #e1e3e5",
+    padding: "10px 16px",
+    background: "#fafbfb",
+    borderBottom: "1px solid #e1e3e5",
     color: "#6d7175",
     fontSize: 11,
     fontWeight: 600,
-    letterSpacing: "0.04em",
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
     whiteSpace: "nowrap",
-    position: "sticky",
-    top: 0,
-    zIndex: 1,
   };
 
   const tdStyle: React.CSSProperties = {
-    padding: "7px 8px",
-    borderBottom: "1px solid #e1e3e5",
+    padding: "10px 16px",
+    borderBottom: "1px solid #f1f2f3",
     verticalAlign: "middle",
     fontSize: 13,
   };
@@ -264,6 +216,7 @@ export default function Products() {
         </button>
       </TitleBar>
       <BlockStack gap="400">
+        <LocalInventoryNotice />
         {syncFetcher.data && !syncFetcher.data.ok && (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">{"error" in syncFetcher.data ? String(syncFetcher.data.error) : "Shopify sync failed."}</Text>
@@ -287,17 +240,29 @@ export default function Products() {
             <BlockStack gap="100">
               <Text as="h1" variant="headingLg">Products</Text>
               <Text as="p" variant="bodyMd" tone="subdued">
-                {products.length} local product record{products.length === 1 ? "" : "s"} synced from Shopify. Use this page to audit stock, mappings, cost, and incoming units.
+                {filteredProducts.length} of {products.length} product{products.length === 1 ? "" : "s"} shown.
+                Delete removes ShelfFlow records only — Shopify products are not affected.
               </Text>
             </BlockStack>
             <InlineStack gap="200">
+              <div style={{ minWidth: 260 }}>
+                <TextField
+                  label="" labelHidden
+                  placeholder="Search by title, SKU, barcode, supplier code…"
+                  value={search}
+                  onChange={setSearch}
+                  clearButton
+                  onClearButtonClick={() => setSearch("")}
+                  autoComplete="off"
+                />
+              </div>
               {selectedCount > 0 && (
                 <>
                   <Text as="span" variant="bodySm" tone="subdued">{selectedCount} selected</Text>
                   <Button
                     tone="critical"
                     loading={isDeleting}
-                    onClick={() => deleteSelected([...selectedIds])}
+                    onClick={() => requestDelete([...selectedIds])}
                   >
                     Delete selected
                   </Button>
@@ -332,6 +297,12 @@ export default function Products() {
 
         {products.length === 0 ? (
           <Card>{emptyStateMarkup}</Card>
+        ) : filteredProducts.length === 0 ? (
+          <Card>
+            <Box padding="800">
+              <Text as="p" alignment="center" tone="subdued">No products match your search.</Text>
+            </Box>
+          </Card>
         ) : (
           <Card padding="0">
             <div style={{ overflowX: "auto" }}>
@@ -359,7 +330,7 @@ export default function Products() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((product) => {
+                  {filteredProducts.map((product) => {
                     const isSelected = selectedIds.has(product.id);
                     const mappings = product.supplierMappings;
                     const primaryMapping = mappings[0];
@@ -427,7 +398,7 @@ export default function Products() {
                             tone="critical"
                             variant="plain"
                             loading={isDeleting}
-                            onClick={() => deleteSelected([product.id])}
+                            onClick={() => requestDelete([product.id])}
                           >
                             Delete
                           </Button>
@@ -441,6 +412,26 @@ export default function Products() {
           </Card>
         )}
       </BlockStack>
+
+      <Modal
+        open={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Remove products from ShelfFlow?"
+        primaryAction={{
+          content: "Delete",
+          destructive: true,
+          loading: isDeleting,
+          onAction: confirmDelete,
+        }}
+        secondaryActions={[{ content: "Cancel", onAction: () => setDeleteModalOpen(false) }]}
+      >
+        <Modal.Section>
+          <Text as="p">
+            This will remove {pendingDeleteIds.length} product record{pendingDeleteIds.length === 1 ? "" : "s"} from ShelfFlow.
+            Shopify products are not deleted. PO and offer line links will be cleared.
+          </Text>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }
