@@ -130,6 +130,10 @@ function StepCircle({ step, current }: { step: number; current: number }) {
   );
 }
 
+function isCsvFile(file: File) {
+  return file.name.toLowerCase().endsWith(".csv");
+}
+
 export default function Imports() {
   const { suppliers } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
@@ -169,13 +173,14 @@ export default function Imports() {
     const text = await file.text();
     const parsed = parseCsv(text);
     const guessed = guessColumnMap(parsed.headers);
+    const supplierSkuCol = guessed.supplier_sku ?? guessed.sku ?? "";
     setSelectedFile(file);
     setCsvText(text);
     setHeaders(parsed.headers);
     setRawRows(parsed.rows);
     setColumnMap({
-      supplier_sku: guessed.supplier_sku ?? "",
-      description: guessed.description ?? "",
+      supplier_sku: supplierSkuCol,
+      description: guessed.description ?? supplierSkuCol,
       unit_cost: guessed.unit_cost ?? "",
       sku: guessed.sku ?? "",
       barcode: guessed.barcode ?? "",
@@ -212,7 +217,9 @@ export default function Imports() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  const mappingValid = columnMap.supplier_sku && columnMap.description && columnMap.unit_cost && supplierId;
+  const mappingValid = Boolean(
+    supplierId && columnMap.unit_cost && (columnMap.supplier_sku || columnMap.sku),
+  );
 
   return (
     <Page fullWidth>
@@ -260,7 +267,7 @@ export default function Imports() {
                   <div
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f?.name.endsWith(".csv")) void loadFile(f); }}
+                    onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f && isCsvFile(f)) void loadFile(f); }}
                     style={{
                       border: `2px dashed ${dragOver ? "#005bd3" : "#c9cccf"}`,
                       borderRadius: 8, padding: "48px 24px",
@@ -308,6 +315,13 @@ export default function Imports() {
                     ? `${importRows.length} ready to import from ${selectedFile?.name ?? "file"}.`
                     : "none mapped yet — check column mapping above."}
                 </Text>
+                {rawRows.length === 0 && (
+                  <Banner tone="critical">
+                    <Text as="p">
+                      No data rows were detected in this file. Check that it is a valid CSV with a header row and at least one data row.
+                    </Text>
+                  </Banner>
+                )}
                 {rawRows.length > 0 && importRows.length === 0 && (
                   <Banner tone="warning">
                     <Text as="p">
