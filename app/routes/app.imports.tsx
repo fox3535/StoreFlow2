@@ -29,7 +29,7 @@ import {
   type ImportResult,
   type ImportRowInput,
 } from "../models/import.server";
-import { guessColumnMap, parseCsv } from "../utils/csv";
+import { guessColumnMap, parseCsv, findHeaderIndex } from "../utils/csv";
 
 const FIELD_DEFS: { key: ImportFieldKey; label: string; required: boolean }[] = [
   { key: "supplier_sku", label: "Supplier SKU", required: true },
@@ -53,28 +53,29 @@ function buildRows(
   columnMap: Record<ImportFieldKey, string>,
   supplierCurrency: string,
 ): ImportRowInput[] {
-  const colIndex = (key: ImportFieldKey) => headers.indexOf(columnMap[key]);
+  const colIndex = (key: ImportFieldKey) => findHeaderIndex(headers, columnMap[key]);
 
   return rows.map((row, rowIndex) => {
     const get = (key: ImportFieldKey) => {
       const idx = colIndex(key);
       return idx >= 0 ? (row[idx] ?? "").trim() : "";
     };
+    const supplierSku = get("supplier_sku") || get("sku");
+    const description = get("description") || supplierSku;
     const unitCost = parseFloat(get("unit_cost").replace(/[$,]/g, "")) || 0;
     const packSize = parseInt(get("pack_size"), 10);
 
-    const supplierSku = get("supplier_sku") || get("sku");
     return {
       rowIndex: rowIndex + 1,
       supplierSku,
-      description: get("description"),
+      description,
       unitCost,
       sku: get("sku") || undefined,
       barcode: get("barcode") || undefined,
       packSize: Number.isFinite(packSize) && packSize > 0 ? packSize : 1,
       currency: get("currency") || supplierCurrency,
     };
-  }).filter((r) => r.supplierSku && r.description);
+  }).filter((r) => r.supplierSku);
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -303,7 +304,9 @@ export default function Imports() {
                 <Text as="p" variant="bodySm" tone="subdued">
                   {rawRows.length} row{rawRows.length === 1 ? "" : "s"} in file
                   {" · "}
-                  {importRows.length} ready to import from {selectedFile?.name ?? "file"}.
+                  {importRows.length > 0
+                    ? `${importRows.length} ready to import from ${selectedFile?.name ?? "file"}.`
+                    : "none mapped yet — check column mapping above."}
                 </Text>
                 {rawRows.length > 0 && importRows.length === 0 && (
                   <Banner tone="warning">

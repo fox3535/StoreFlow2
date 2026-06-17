@@ -152,6 +152,9 @@ export default function Settings() {
                 selected={receivingDefault}
                 onChange={setReceivingDefault}
               />
+              <Text as="p" variant="bodySm" tone="subdued">
+                This default can be overridden per receiving session on any individual line item.
+              </Text>
             </BlockStack>
           </Card>
 

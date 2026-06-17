@@ -134,6 +134,7 @@ export default function Products() {
   function weightedPct(width: number) {
     return `${(width / totalTableWidth) * 100}%`;
   }
+
   const selectedCount = selectedIds.size;
   const allSelected = filteredProducts.length > 0 && selectedCount === filteredProducts.length;
   const someSelected = selectedCount > 0 && !allSelected;
@@ -206,6 +207,8 @@ export default function Products() {
     borderBottom: "1px solid #f1f2f3",
     verticalAlign: "middle",
     fontSize: 13,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   };
 
   function cell(key: ColKey, content: React.ReactNode) {

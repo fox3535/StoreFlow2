@@ -14,6 +14,7 @@ import { TitleBar } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const candidatePOs = await prisma.purchaseOrder.findMany({
