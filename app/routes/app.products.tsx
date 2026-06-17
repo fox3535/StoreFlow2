@@ -43,17 +43,17 @@ type ColKey =
   | "mappingState";
 
 const ALL_COLS: { key: ColKey; label: string; defaultVisible: boolean; align: "left" | "right" | "center"; width: number }[] = [
-  { key: "image", label: "", defaultVisible: true, align: "center", width: 52 },
-  { key: "product", label: "Product", defaultVisible: true, align: "left", width: 280 },
-  { key: "sku", label: "SKU", defaultVisible: true, align: "left", width: 130 },
-  { key: "barcode", label: "Barcode", defaultVisible: true, align: "left", width: 140 },
-  { key: "supplierSku", label: "Supplier Code / SKU", defaultVisible: true, align: "left", width: 180 },
-  { key: "stock", label: "Stock", defaultVisible: true, align: "right", width: 80 },
-  { key: "ordered", label: "On Order", defaultVisible: true, align: "right", width: 92 },
-  { key: "available", label: "Available", defaultVisible: true, align: "right", width: 92 },
-  { key: "cost", label: "Cost", defaultVisible: true, align: "right", width: 100 },
-  { key: "lastUsedCost", label: "Last Used Cost", defaultVisible: true, align: "right", width: 120 },
-  { key: "mappingState", label: "Mapping", defaultVisible: true, align: "center", width: 110 },
+  { key: "image", label: "", defaultVisible: true, align: "center", width: 48 },
+  { key: "product", label: "Product", defaultVisible: true, align: "left", width: 200 },
+  { key: "sku", label: "SKU", defaultVisible: true, align: "left", width: 100 },
+  { key: "barcode", label: "Barcode", defaultVisible: true, align: "left", width: 110 },
+  { key: "supplierSku", label: "Supplier Code / SKU", defaultVisible: true, align: "left", width: 140 },
+  { key: "stock", label: "Stock", defaultVisible: true, align: "right", width: 68 },
+  { key: "ordered", label: "On Order", defaultVisible: true, align: "right", width: 80 },
+  { key: "available", label: "Available", defaultVisible: true, align: "right", width: 80 },
+  { key: "cost", label: "Cost", defaultVisible: true, align: "right", width: 88 },
+  { key: "lastUsedCost", label: "Last Used Cost", defaultVisible: true, align: "right", width: 100 },
+  { key: "mappingState", label: "Mapping", defaultVisible: true, align: "center", width: 96 },
 ];
 
 const DEFAULT_VISIBLE = ALL_COLS.filter((col) => col.defaultVisible).map((col) => col.key);
@@ -126,11 +126,10 @@ export default function Products() {
     [visibleColKeys],
   );
 
-  const CHECKBOX_W = 48;
-  const ACTION_W = 88;
+  const CHECKBOX_W = 44;
+  const ACTION_W = 72;
   const totalDataWidth = activeCols.reduce((s, c) => s + c.width, 0);
   const totalTableWidth = CHECKBOX_W + totalDataWidth + ACTION_W;
-  const tableMinWidth = totalTableWidth;
 
   function weightedPct(width: number) {
     return `${(width / totalTableWidth) * 100}%`;
@@ -224,8 +223,20 @@ export default function Products() {
       </TitleBar>
       <style>{`
         .products-page {
+          width: 100%;
           max-width: 100%;
           min-width: 0;
+          overflow-x: hidden;
+        }
+        .products-table-wrap {
+          overflow-x: auto;
+          width: 100%;
+          max-width: 100%;
+        }
+        .products-table {
+          border-collapse: collapse;
+          width: 100%;
+          table-layout: fixed;
         }
         .products-toolbar {
           display: flex;
@@ -338,8 +349,8 @@ export default function Products() {
           </Card>
         ) : (
           <Card padding="0">
-            <div style={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}>
-              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: tableMinWidth, tableLayout: "fixed" }}>
+            <div className="products-table-wrap">
+              <table className="products-table">
                 <colgroup>
                   <col style={{ width: weightedPct(CHECKBOX_W) }} />
                   {activeCols.map((col) => <col key={col.key} style={{ width: weightedPct(col.width) }} />)}

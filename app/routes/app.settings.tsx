@@ -58,8 +58,8 @@ const CURRENCY_OPTIONS = [
 ];
 
 const RECEIVING_CHOICES = [
-  { label: "Restock — update ShelfFlow local quantity (Shopify unchanged in V1)", value: "restock" },
-  { label: "Credit — log receipt without updating local stock", value: "credit" },
+  { label: "Restock — increase on-hand quantity when receiving", value: "restock" },
+  { label: "Credit — log receipt without updating stock", value: "credit" },
   { label: "Ignore — receive but take no stock action", value: "ignore" },
 ];
 
@@ -152,9 +152,6 @@ export default function Settings() {
                 selected={receivingDefault}
                 onChange={setReceivingDefault}
               />
-              <Text as="p" variant="bodySm" tone="subdued">
-                Receiving updates ShelfFlow local stock and average costs only. Shopify inventory is not modified in V1.
-              </Text>
             </BlockStack>
           </Card>
 

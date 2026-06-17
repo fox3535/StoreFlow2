@@ -1,13 +1,14 @@
 /** Minimal RFC-4180 CSV parser (no external deps). */
 export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const cleaned = text.replace(/^\uFEFF/, "");
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
 
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    const next = text[i + 1];
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const ch = cleaned[i];
+    const next = cleaned[i + 1];
 
     if (inQuotes) {
       if (ch === '"' && next === '"') {
@@ -56,18 +57,36 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
 }
 
 export function guessColumnMap(headers: string[]): Record<string, string | null> {
-  const norm = (h: string) => h.toLowerCase().replace(/[\s_-]+/g, "");
+  const norm = (h: string) => h.toLowerCase().replace(/[\s_./-]+/g, "");
   const find = (...candidates: string[]) => {
     const idx = headers.findIndex((h) => candidates.includes(norm(h)));
     return idx >= 0 ? headers[idx] : null;
   };
 
+  const supplierSkuDedicated = find(
+    "suppliersku", "suppliercode", "supplieritem", "vendorsku", "vendorcode",
+    "skucode", "itemcode", "productcode", "partnumber", "partno", "mpn",
+  );
+  const variantSku = find("variantsku");
+  const plainSku = headers.find((h) => norm(h) === "sku") ?? null;
+  const supplierSku = supplierSkuDedicated ?? variantSku ?? plainSku;
+
+  const shopifySkuDedicated = find("shopsku", "shopifysku");
+  const sku =
+    shopifySkuDedicated
+    ?? (plainSku && plainSku !== supplierSku ? plainSku : null)
+    ?? (variantSku && variantSku !== supplierSku ? variantSku : null);
+
   return {
-    supplier_sku: find("suppliersku", "suppliercode", "vendorsku", "skucode"),
-    description: find("description", "product", "title", "name", "productname"),
-    unit_cost: find("unitcost", "cost", "price", "unitprice", "wholesale"),
-    sku: headers.find((h) => norm(h) === "sku") ?? find("shopsku", "variantsku", "shopifysku"),
-    barcode: find("barcode", "upc", "ean", "gtin"),
+    supplier_sku: supplierSku,
+    description: find(
+      "description", "product", "title", "name", "productname", "producttitle", "itemname",
+    ),
+    unit_cost: find(
+      "unitcost", "cost", "price", "unitprice", "wholesale", "variantprice", "wholesaleprice",
+    ),
+    sku,
+    barcode: find("barcode", "upc", "ean", "gtin", "variantbarcode"),
     pack_size: find("packsize", "pack", "casepack", "moq"),
     currency: find("currency", "curr"),
   };

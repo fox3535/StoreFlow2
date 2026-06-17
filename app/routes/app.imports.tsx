@@ -63,9 +63,10 @@ function buildRows(
     const unitCost = parseFloat(get("unit_cost").replace(/[$,]/g, "")) || 0;
     const packSize = parseInt(get("pack_size"), 10);
 
+    const supplierSku = get("supplier_sku") || get("sku");
     return {
       rowIndex: rowIndex + 1,
-      supplierSku: get("supplier_sku"),
+      supplierSku,
       description: get("description"),
       unitCost,
       sku: get("sku") || undefined,
@@ -300,8 +301,18 @@ export default function Imports() {
                   />
                 ))}
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {importRows.length} data row{importRows.length === 1 ? "" : "s"} detected from {selectedFile?.name ?? "file"}.
+                  {rawRows.length} row{rawRows.length === 1 ? "" : "s"} in file
+                  {" · "}
+                  {importRows.length} ready to import from {selectedFile?.name ?? "file"}.
                 </Text>
+                {rawRows.length > 0 && importRows.length === 0 && (
+                  <Banner tone="warning">
+                    <Text as="p">
+                      No importable rows yet. Map <strong>Supplier SKU</strong>, <strong>Description</strong>, and{" "}
+                      <strong>Unit Cost</strong> to the correct columns. A lone SKU column is accepted as the supplier code.
+                    </Text>
+                  </Banner>
+                )}
                 <InlineStack gap="200">
                   <Button onClick={() => setStep(1)}>Back</Button>
                   <Button variant="primary" disabled={!mappingValid || isBusy} onClick={runPreview}>
