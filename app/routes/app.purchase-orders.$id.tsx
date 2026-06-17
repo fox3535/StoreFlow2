@@ -11,7 +11,6 @@ import {
   Badge,
   Divider,
   Button,
-  TextField,
   Banner,
   Box,
   Select,
@@ -28,7 +27,7 @@ import {
   updatePurchaseOrderStatus,
 } from "../models/purchase-order.server";
 import type { EditItem, ColKey } from "../components/POSpreadsheet";
-import { ALL_COLS, DEFAULT_VISIBLE, POSpreadsheet } from "../components/POSpreadsheet";
+import { ALL_COLS, DEFAULT_VISIBLE, POCostField, POSpreadsheet } from "../components/POSpreadsheet";
 import type { PickedProduct } from "../components/ProductPickerButton";
 import { ProductPickerButton } from "../components/ProductPickerButton";
 
@@ -113,6 +112,15 @@ function calcLanded(sub: number, freight: number, tax: number, disc: number, oth
 }
 
 function fmt(n: number) { return `$${n.toFixed(2)}`; }
+
+function CostRow({ label, value, tone }: { label: string; value: string; tone?: "success" }) {
+  return (
+    <InlineStack align="space-between">
+      <Text as="span" variant="bodySm" tone="subdued">{label}</Text>
+      <Text as="span" variant="bodySm" tone={tone}>{value}</Text>
+    </InlineStack>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -273,35 +281,6 @@ export default function PurchaseOrderDetail() {
     const col = ALL_COLS.find((c) => c.key === k);
     return col && !col.alwaysVisible;
   });
-
-  // ── Row for cost breakdown (only shows non-zero items) ────────────────────
-  function CostRow({ label, value, tone }: { label: string; value: string; tone?: "success" }) {
-    return (
-      <InlineStack align="space-between">
-        <Text as="span" variant="bodySm" tone="subdued">{label}</Text>
-        <Text as="span" variant="bodySm" tone={tone}>{value}</Text>
-      </InlineStack>
-    );
-  }
-
-  // ── Editable cost field ───────────────────────────────────────────────────
-  function CF({ label, value, onChange, prefix = "$", helpText }: {
-    label: string; value: string; onChange: (v: string) => void;
-    prefix?: string; helpText?: string;
-  }) {
-    return (
-      <TextField
-        label={label}
-        value={value}
-        onChange={(v) => { onChange(v); setDirty(true); }}
-        type="number"
-        prefix={prefix}
-        helpText={helpText}
-        autoComplete="off"
-        disabled={!canEdit}
-      />
-    );
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -511,22 +490,61 @@ export default function PurchaseOrderDetail() {
                       onChange={(v) => { setCurrency(v); setDirty(true); }}
                       disabled={!canEdit}
                     />
-                    <CF label="Exchange Rate" value={exchangeRate} onChange={setExchangeRate} prefix="×" helpText="Applied to subtotal" />
-                    <CF label="Freight / Shipping" value={freight}    onChange={setFreight}    />
-                    <CF label="Tax"                value={tax}        onChange={setTax}        />
-                    <CF label="Duties / Other"     value={otherCosts} onChange={setOtherCosts} />
-                    <CF label="Discounts"          value={discounts}  onChange={setDiscounts}  helpText="Subtracted from cost" />
-                    <CF label="Adjustment"         value={adjustment} onChange={setAdjustment} helpText="Fixed add after rate" />
+                    <POCostField
+                      label="Exchange Rate"
+                      type="number"
+                      prefix="×"
+                      value={exchangeRate}
+                      onChange={(v) => { setExchangeRate(v); setDirty(true); }}
+                      helpText="Applied to subtotal"
+                      disabled={!canEdit}
+                    />
+                    <POCostField
+                      label="Freight / Shipping"
+                      type="number"
+                      value={freight}
+                      onChange={(v) => { setFreight(v); setDirty(true); }}
+                      disabled={!canEdit}
+                    />
+                    <POCostField
+                      label="Tax"
+                      type="number"
+                      value={tax}
+                      onChange={(v) => { setTax(v); setDirty(true); }}
+                      disabled={!canEdit}
+                    />
+                    <POCostField
+                      label="Duties / Other"
+                      type="number"
+                      value={otherCosts}
+                      onChange={(v) => { setOtherCosts(v); setDirty(true); }}
+                      disabled={!canEdit}
+                    />
+                    <POCostField
+                      label="Discounts"
+                      type="number"
+                      value={discounts}
+                      onChange={(v) => { setDiscounts(v); setDirty(true); }}
+                      helpText="Subtracted from cost"
+                      disabled={!canEdit}
+                    />
+                    <POCostField
+                      label="Adjustment"
+                      type="number"
+                      value={adjustment}
+                      onChange={(v) => { setAdjustment(v); setDirty(true); }}
+                      helpText="Fixed add after rate"
+                      disabled={!canEdit}
+                    />
 
                     <Divider />
 
-                    <TextField
+                    <POCostField
                       label="Notes"
                       value={notes}
                       onChange={(v) => { setNotes(v); setDirty(true); }}
                       multiline={3}
                       placeholder="Internal notes…"
-                      autoComplete="off"
                       disabled={!canEdit}
                     />
                   </BlockStack>

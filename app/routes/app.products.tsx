@@ -28,7 +28,6 @@ import { deleteProducts, getProducts } from "../models/product.server";
 import { syncShopifyProducts } from "../models/shopify-product-sync.server";
 import { getSettings } from "../models/settings.server";
 import { usePersistedColumns } from "../hooks/usePersistedColumns";
-import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 
 type ColKey =
   | "image"
@@ -127,7 +126,15 @@ export default function Products() {
     [visibleColKeys],
   );
 
-  const tableMinWidth = 48 + activeCols.reduce((s, c) => s + c.width, 0) + 88;
+  const CHECKBOX_W = 48;
+  const ACTION_W = 88;
+  const totalDataWidth = activeCols.reduce((s, c) => s + c.width, 0);
+  const totalTableWidth = CHECKBOX_W + totalDataWidth + ACTION_W;
+  const tableMinWidth = totalTableWidth;
+
+  function weightedPct(width: number) {
+    return `${(width / totalTableWidth) * 100}%`;
+  }
   const selectedCount = selectedIds.size;
   const allSelected = filteredProducts.length > 0 && selectedCount === filteredProducts.length;
   const someSelected = selectedCount > 0 && !allSelected;
@@ -215,8 +222,32 @@ export default function Products() {
           {isSyncing ? "Syncing…" : "Sync from Shopify"}
         </button>
       </TitleBar>
+      <style>{`
+        .products-page {
+          max-width: 100%;
+          min-width: 0;
+        }
+        .products-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .products-toolbar-search {
+          flex: 1 1 200px;
+          min-width: 0;
+          max-width: 360px;
+        }
+        .products-toolbar-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+      `}</style>
+      <div className="products-page">
       <BlockStack gap="400">
-        <LocalInventoryNotice />
         {syncFetcher.data && !syncFetcher.data.ok && (
           <Banner tone="critical">
             <Text as="p" variant="bodyMd">{"error" in syncFetcher.data ? String(syncFetcher.data.error) : "Shopify sync failed."}</Text>
@@ -236,7 +267,7 @@ export default function Products() {
         )}
 
         <Card>
-          <InlineStack align="space-between" blockAlign="center" gap="400">
+          <BlockStack gap="400">
             <BlockStack gap="100">
               <Text as="h1" variant="headingLg">Products</Text>
               <Text as="p" variant="bodyMd" tone="subdued">
@@ -244,8 +275,8 @@ export default function Products() {
                 Delete removes ShelfFlow records only — Shopify products are not affected.
               </Text>
             </BlockStack>
-            <InlineStack gap="200">
-              <div style={{ minWidth: 260 }}>
+            <div className="products-toolbar">
+              <div className="products-toolbar-search">
                 <TextField
                   label="" labelHidden
                   placeholder="Search by title, SKU, barcode, supplier code…"
@@ -256,43 +287,45 @@ export default function Products() {
                   autoComplete="off"
                 />
               </div>
-              {selectedCount > 0 && (
-                <>
-                  <Text as="span" variant="bodySm" tone="subdued">{selectedCount} selected</Text>
-                  <Button
-                    tone="critical"
-                    loading={isDeleting}
-                    onClick={() => requestDelete([...selectedIds])}
-                  >
-                    Delete selected
-                  </Button>
-                </>
-              )}
-              <Popover
-                active={colPopoverOpen}
-                activator={
-                  <Button onClick={() => setColPopoverOpen((open) => !open)}>
-                    {`Columns (${visibleColKeys.length})`}
-                  </Button>
-                }
-                onClose={() => setColPopoverOpen(false)}
-                preferredAlignment="right"
-              >
-                <Box padding="400">
-                  <ChoiceList
-                    title="Product columns"
-                    allowMultiple
-                    choices={ALL_COLS.filter((col) => col.key !== "product").map((col) => ({
-                      label: col.label || "Image",
-                      value: col.key,
-                    }))}
-                    selected={visibleColKeys.filter((key) => key !== "product")}
-                    onChange={(selected) => setVisibleColKeys(["product", ...(selected as ColKey[])])}
-                  />
-                </Box>
-              </Popover>
-            </InlineStack>
-          </InlineStack>
+              <div className="products-toolbar-actions">
+                {selectedCount > 0 && (
+                  <>
+                    <Text as="span" variant="bodySm" tone="subdued">{selectedCount} selected</Text>
+                    <Button
+                      tone="critical"
+                      loading={isDeleting}
+                      onClick={() => requestDelete([...selectedIds])}
+                    >
+                      Delete selected
+                    </Button>
+                  </>
+                )}
+                <Popover
+                  active={colPopoverOpen}
+                  activator={
+                    <Button onClick={() => setColPopoverOpen((open) => !open)}>
+                      {`Columns (${visibleColKeys.length})`}
+                    </Button>
+                  }
+                  onClose={() => setColPopoverOpen(false)}
+                  preferredAlignment="right"
+                >
+                  <Box padding="400">
+                    <ChoiceList
+                      title="Product columns"
+                      allowMultiple
+                      choices={ALL_COLS.filter((col) => col.key !== "product").map((col) => ({
+                        label: col.label || "Image",
+                        value: col.key,
+                      }))}
+                      selected={visibleColKeys.filter((key) => key !== "product")}
+                      onChange={(selected) => setVisibleColKeys(["product", ...(selected as ColKey[])])}
+                    />
+                  </Box>
+                </Popover>
+              </div>
+            </div>
+          </BlockStack>
         </Card>
 
         {products.length === 0 ? (
@@ -305,12 +338,12 @@ export default function Products() {
           </Card>
         ) : (
           <Card padding="0">
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}>
               <table style={{ borderCollapse: "collapse", width: "100%", minWidth: tableMinWidth, tableLayout: "fixed" }}>
                 <colgroup>
-                  <col style={{ width: 48 }} />
-                  {activeCols.map((col) => <col key={col.key} style={{ width: col.width }} />)}
-                  <col style={{ width: 88 }} />
+                  <col style={{ width: weightedPct(CHECKBOX_W) }} />
+                  {activeCols.map((col) => <col key={col.key} style={{ width: weightedPct(col.width) }} />)}
+                  <col style={{ width: weightedPct(ACTION_W) }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -362,10 +395,12 @@ export default function Products() {
                         </td>
                         {cell("image", <Thumbnail source={image} alt={product.title} size="small" />)}
                         {cell("product", (
-                          <InlineStack gap="300" blockAlign="center" wrap={false}>
+                          <InlineStack gap="300" blockAlign="center" wrap>
                             {!visibleColKeys.includes("image") && <Thumbnail source={image} alt={product.title} size="small" />}
                             <BlockStack gap="050">
-                              <Text as="span" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
+                              <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <Text as="span" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
+                              </span>
                               <Text as="span" variant="bodySm" tone="subdued">Variant {product.shopifyVariantId}</Text>
                             </BlockStack>
                           </InlineStack>
@@ -412,6 +447,7 @@ export default function Products() {
           </Card>
         )}
       </BlockStack>
+      </div>
 
       <Modal
         open={deleteModalOpen}

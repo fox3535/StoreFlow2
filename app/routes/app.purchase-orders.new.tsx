@@ -27,7 +27,7 @@ import { getSettings } from "../models/settings.server";
 import type { PickedProduct } from "../components/ProductPickerButton";
 import { ProductPickerButton } from "../components/ProductPickerButton";
 import type { EditItem, ColKey } from "../components/POSpreadsheet";
-import { ALL_COLS, DEFAULT_VISIBLE, POSpreadsheet } from "../components/POSpreadsheet";
+import { ALL_COLS, DEFAULT_VISIBLE, POCostField, POSpreadsheet } from "../components/POSpreadsheet";
 
 // ---------------------------------------------------------------------------
 // Loader
@@ -342,13 +342,13 @@ export default function NewPurchaseOrder() {
                     <Text as="span" variant="bodyMd" tone="subdued">Subtotal</Text>
                     <Text as="span" variant="bodyMd">${subtotal.toFixed(2)}</Text>
                   </InlineStack>
-                  <TextField label="Freight / Shipping" type="number" prefix="$" value={freightCost} onChange={setFreightCost} autoComplete="off" />
-                  <TextField label="Tax"                type="number" prefix="$" value={tax}         onChange={setTax}         autoComplete="off" />
-                  <TextField label="Duties / Other"     type="number" prefix="$" value={otherCosts}  onChange={setOtherCosts}  autoComplete="off" />
-                  <TextField label="Discounts"          type="number" prefix="$" value={discounts}   onChange={setDiscounts}   helpText="Subtracted from cost" autoComplete="off" />
-                  <TextField label="Adjustment"         type="number" prefix="$" value={adjustment}  onChange={setAdjustment}  helpText="Fixed add after rate" autoComplete="off" />
+                  <POCostField label="Freight / Shipping" type="number" prefix="$" value={freightCost} onChange={setFreightCost} />
+                  <POCostField label="Tax"                type="number" prefix="$" value={tax}         onChange={setTax}         />
+                  <POCostField label="Duties / Other"     type="number" prefix="$" value={otherCosts}  onChange={setOtherCosts}  />
+                  <POCostField label="Discounts"          type="number" prefix="$" value={discounts}   onChange={setDiscounts}   helpText="Subtracted from cost" />
+                  <POCostField label="Adjustment"         type="number" prefix="$" value={adjustment}  onChange={setAdjustment}  helpText="Fixed add after rate" />
                   <Select label="Currency" options={CURRENCY_OPTIONS} value={currency} onChange={setCurrency} />
-                  <TextField label="Exchange Rate" type="number" prefix="×" value={exchangeRate} onChange={setExchangeRate} helpText="Applied to subtotal" autoComplete="off" />
+                  <POCostField label="Exchange Rate" type="number" prefix="×" value={exchangeRate} onChange={setExchangeRate} helpText="Applied to subtotal" />
                   <Divider />
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="span" variant="bodyMd" fontWeight="semibold">Total Landed</Text>
@@ -361,7 +361,7 @@ export default function NewPurchaseOrder() {
                     </InlineStack>
                   )}
                   <Divider />
-                  <TextField label="Notes" value={notes} onChange={setNotes} multiline={3} placeholder="Internal notes…" autoComplete="off" />
+                  <POCostField label="Notes" value={notes} onChange={setNotes} multiline={3} placeholder="Internal notes…" />
                   <BlockStack gap="200">
                     <Button variant="primary" fullWidth onClick={() => handleSave("open")}>Save as Open</Button>
                     <Button fullWidth onClick={() => handleSave("draft")}>Save as Draft</Button>

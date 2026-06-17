@@ -89,6 +89,18 @@ export type POSpreadsheetProps = {
 // Compact native input — stable, no Polaris remount issues
 // ---------------------------------------------------------------------------
 
+const inputBaseStyle = (focused: boolean, disabled: boolean): React.CSSProperties => ({
+  width: "100%",
+  border: `1.5px solid ${focused ? "#005bd3" : "#c9cccf"}`,
+  borderRadius: "8px",
+  fontSize: "13px",
+  background: disabled ? "#f6f6f7" : "#fff",
+  boxSizing: "border-box",
+  outline: "none",
+  boxShadow: focused ? "0 0 0 1px #005bd3" : "none",
+  color: disabled ? "#8c9196" : "#202223",
+});
+
 function TI({
   value,
   onChange,
@@ -115,20 +127,112 @@ function TI({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        width: "100%",
+        ...inputBaseStyle(focused, disabled),
         height: "30px",
         padding: "0 7px",
-        border: `1.5px solid ${focused ? "#005bd3" : "#c9cccf"}`,
         borderRadius: "4px",
-        fontSize: "13px",
         textAlign: align,
-        background: disabled ? "#f6f6f7" : "#fff",
-        boxSizing: "border-box",
-        outline: "none",
         boxShadow: focused ? "0 0 0 2px #c4d3f4" : "none",
-        color: "#202223",
       }}
     />
+  );
+}
+
+/** Stable labeled field for PO cost panels — avoids Polaris TextField focus loss on re-render. */
+export function POCostField({
+  label,
+  value,
+  onChange,
+  prefix,
+  helpText,
+  disabled = false,
+  multiline,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  prefix?: string;
+  helpText?: string;
+  disabled?: boolean;
+  multiline?: number;
+  placeholder?: string;
+  type?: "text" | "number" | "date";
+}) {
+  const [focused, setFocused] = React.useState(false);
+  const shared = {
+    value,
+    disabled,
+    placeholder,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+  };
+
+  return (
+    <div>
+      <label
+        style={{
+          display: "block",
+          fontSize: "13px",
+          fontWeight: 500,
+          color: "#202223",
+          marginBottom: "4px",
+        }}
+      >
+        {label}
+      </label>
+      {multiline ? (
+        <textarea
+          {...shared}
+          rows={multiline}
+          style={{
+            ...inputBaseStyle(focused, disabled),
+            minHeight: `${multiline * 20 + 16}px`,
+            padding: "8px 12px",
+            resize: "vertical",
+            fontFamily: "inherit",
+            lineHeight: "1.4",
+          }}
+        />
+      ) : (
+        <div style={{ display: "flex", alignItems: "stretch" }}>
+          {prefix && (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "0 10px",
+                background: disabled ? "#f6f6f7" : "#f1f2f3",
+                border: `1.5px solid ${focused ? "#005bd3" : "#c9cccf"}`,
+                borderRight: "none",
+                borderRadius: "8px 0 0 8px",
+                fontSize: "13px",
+                color: "#6d7175",
+              }}
+            >
+              {prefix}
+            </span>
+          )}
+          <input
+            {...shared}
+            type={type}
+            style={{
+              ...inputBaseStyle(focused, disabled),
+              height: "36px",
+              padding: "0 12px",
+              borderRadius: prefix ? "0 8px 8px 0" : "8px",
+            }}
+          />
+        </div>
+      )}
+      {helpText && (
+        <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#6d7175", lineHeight: 1.4 }}>
+          {helpText}
+        </p>
+      )}
+    </div>
   );
 }
 

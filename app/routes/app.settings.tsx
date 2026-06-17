@@ -21,7 +21,6 @@ import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect } from "react";
 
 import { authenticate } from "../shopify.server";
-import { LocalInventoryNotice } from "../components/LocalInventoryNotice";
 import { getSettings, saveSettings } from "../models/settings.server";
 
 // ---------------------------------------------------------------------------
@@ -158,8 +157,6 @@ export default function Settings() {
               </Text>
             </BlockStack>
           </Card>
-
-          <LocalInventoryNotice />
 
           {/* Shopify sync */}
           <Card>
